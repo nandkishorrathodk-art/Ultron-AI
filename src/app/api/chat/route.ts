@@ -21,7 +21,7 @@ import crypto from "crypto";
 import { getOrCreateSandbox, killSandbox, addSandboxLog } from "@/lib/sandbox-manager";
 import { validateRequest } from "@/lib/auth";
 import { filterToolOutput } from "@/lib/cot-filter";
-import { MODEL_ROSTER, getModelChain, type AgentRole } from "@/lib/models";
+import { getModelChain } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -120,11 +120,19 @@ const TOOL_TIMEOUTS: Record<string, number> = {
 
 // ─── Input Sanitization ──────────────────────────────────────────────────────
 function sanitizePath(path: string): string {
-  // Remove null bytes, command substitution, and shell metacharacters
-  return path
+  let sanitized = path
     .replace(/\0/g, "")
-    .replace(/[`$(){}|;&]/g, "")
-    .replace(/\.\.\//g, "");
+    .replace(/[`$(){}|;&'"\\]/g, "");
+  // Loop to fully resolve traversal sequences (e.g. ....// -> ../ -> "")
+  let prev = "";
+  while (prev !== sanitized) {
+    prev = sanitized;
+    sanitized = sanitized.replace(/\.\.\//g, "").replace(/\.\.\\/g, "");
+  }
+  if (!sanitized.startsWith("/")) {
+    sanitized = "/home/user/" + sanitized;
+  }
+  return sanitized;
 }
 
 function sanitizePackageName(name: string): string {

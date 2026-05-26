@@ -115,6 +115,7 @@ export function getActiveSandboxes(): Array<{
   sandboxId: string;
   ageSeconds: number;
   logCount: number;
+  logs: SandboxLog[];
 }> {
   const now = Date.now();
   return Array.from(sandboxSessions.values()).map((s) => ({
@@ -122,5 +123,6 @@ export function getActiveSandboxes(): Array<{
     sandboxId: s.sandboxId,
     ageSeconds: Math.round((now - s.lastUsed) / 1000),
     logCount: s.logs.length,
+    logs: s.logs.slice(-50),
   }));
 }

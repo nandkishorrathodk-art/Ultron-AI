@@ -194,7 +194,7 @@ function ToolInvocationDisplay({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [input, setInput] = useState("");
-  const [detectedMode, setDetectedMode] = useState<FlowMode | null>(null);
+  const [detectedMode, setDetectedMode] = useState<FlowMode>("standard");
   const sessionIdRef = useRef<string | null>(null);
 
   const chatResult = useChat({
@@ -288,6 +288,9 @@ export default function Home() {
           </h1>
           <p className="text-sm text-muted-foreground">
             AI-powered autonomous penetration testing with Flow Engine + 13 specialist agents.
+            {detectedMode !== "standard" && (
+              <span className="ml-2 text-primary font-medium">[{detectedMode.toUpperCase()} MODE]</span>
+            )}
           </p>
         </div>
       </header>
