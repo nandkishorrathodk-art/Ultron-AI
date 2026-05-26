@@ -152,7 +152,7 @@ export default function SandboxPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="bg-black/90 border border-muted p-4 rounded-md font-mono text-sm text-green-400 overflow-x-auto max-h-96 overflow-y-auto space-y-4 animate-fadeIn">
-                    {box.logs.length === 0 ? (
+                    {!box.logs || box.logs.length === 0 ? (
                       <div className="text-muted-foreground italic text-xs animate-pulse">
                         Waiting for commands to be executed...
                       </div>

@@ -1,96 +1,126 @@
 /**
- * Shared Sandbox Session Manager
- * ═══════════════════════════════════════════════════════════════
- * Extracted from chat/route.ts so both the chat route and the
- * execute-approved route can reuse the SAME persistent sandbox.
+ * ULTRON v3.0 — Sandbox Manager
  *
- * Key design: one VM per session, files/tools survive between commands.
- * ═══════════════════════════════════════════════════════════════
+ * Manages persistent E2B sandbox sessions.
+ * NOTE: In-memory Map works for long-lived Node processes (e.g. `next dev`,
+ * custom server, Docker). For serverless (Vercel), consider using Redis/Upstash
+ * to store sandbox IDs and reconnect via `Sandbox.connect(sandboxId)`.
  */
 
 import { Sandbox } from "e2b";
 
-// ─── Sandbox Session Interface ────────────────────────────────────────────────
-interface SandboxSession {
-  sandbox: Sandbox;
-  lastUsed: number;
-  logs: { command: string; output: string; timestamp: number }[];
+interface SandboxLog {
+  command: string;
+  output: string;
+  timestamp: number;
 }
 
-// ─── Sandbox Session Map ──────────────────────────────────────────────────────
-// Stores active sandbox instances keyed by sessionId.
+interface SandboxSession {
+  sandbox: Sandbox;
+  sessionId: string;
+  sandboxId: string;
+  lastUsed: number;
+  logs: SandboxLog[];
+}
+
+// In-memory session store — works for persistent Node servers
 const sandboxSessions = new Map<string, SandboxSession>();
 
-// Clean up idle sandboxes older than 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, session] of sandboxSessions.entries()) {
-    if (now - session.lastUsed > 10 * 60 * 1000) {
-      session.sandbox.kill().catch(() => {});
-      sandboxSessions.delete(id);
-      console.log(`[Ultron] Session ${id} expired and cleaned up`);
-    }
-  }
-}, 60_000);
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const CLEANUP_INTERVAL_MS = 60_000;
 
-// ─── Get or Create Sandbox ────────────────────────────────────────────────────
+// Cleanup runs only in long-lived processes (not serverless)
+let cleanupStarted = false;
+
+function startCleanupIfNeeded(): void {
+  if (cleanupStarted || typeof globalThis.setInterval === "undefined") return;
+  cleanupStarted = true;
+
+  const interval = setInterval(async () => {
+    const now = Date.now();
+    for (const [sid, session] of sandboxSessions) {
+      if (now - session.lastUsed > IDLE_TIMEOUT_MS) {
+        console.log(`[Sandbox] Killing idle sandbox: ${sid}`);
+        try {
+          await session.sandbox.kill();
+        } catch {
+          // sandbox may already be dead
+        }
+        sandboxSessions.delete(sid);
+      }
+    }
+  }, CLEANUP_INTERVAL_MS);
+
+  // Don't prevent Node from exiting
+  if (interval.unref) interval.unref();
+}
+
 export async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
   const existing = sandboxSessions.get(sessionId);
   if (existing) {
     existing.lastUsed = Date.now();
-    console.log(`[Ultron] Reusing sandbox for session: ${sessionId}`);
     return existing.sandbox;
   }
 
-  console.log(`[Ultron] Creating new sandbox for session: ${sessionId}`);
-  const sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY! });
+  console.log(`[Sandbox] Creating new sandbox for session: ${sessionId}`);
 
-  // Bootstrap pentest workspace on first creation
+  const sandbox = await Sandbox.create({
+    apiKey: process.env.E2B_API_KEY,
+    timeoutMs: 5 * 60 * 1000, // 5 minutes sandbox lifetime
+  });
+
+  // Bootstrap the workspace
   await sandbox.commands.run(
-    "mkdir -p /home/user/pentest && " +
-    "echo '# Ultron Pentest Session' > /home/user/pentest/findings.md && " +
-    "echo 'Session started: ' $(date) >> /home/user/pentest/findings.md"
+    "mkdir -p /home/user/pentest && echo '# Ultron v3.0 Findings' > /home/user/pentest/findings.md",
+    { timeoutMs: 5_000 },
   );
 
-  sandboxSessions.set(sessionId, { sandbox, lastUsed: Date.now(), logs: [] });
+  sandboxSessions.set(sessionId, {
+    sandbox,
+    sessionId,
+    sandboxId: sandbox.sandboxId,
+    lastUsed: Date.now(),
+    logs: [],
+  });
+
+  startCleanupIfNeeded();
+
   return sandbox;
 }
 
-// ─── Kill Sandbox ─────────────────────────────────────────────────────────────
 export async function killSandbox(sessionId: string): Promise<boolean> {
   const session = sandboxSessions.get(sessionId);
-  if (session) {
-    await session.sandbox.kill().catch(() => {});
-    sandboxSessions.delete(sessionId);
-    return true;
+  if (!session) return false;
+
+  try {
+    await session.sandbox.kill();
+  } catch {
+    // sandbox may already be dead
   }
-  return false;
+  sandboxSessions.delete(sessionId);
+  console.log(`[Sandbox] Killed sandbox for session: ${sessionId}`);
+  return true;
 }
 
-// ─── Add Sandbox Execution Log ───────────────────────────────────────────────
-export function addSandboxLog(sessionId: string, command: string, output: string) {
+export function addSandboxLog(sessionId: string, command: string, output: string): void {
   const session = sandboxSessions.get(sessionId);
   if (session) {
-    session.logs.push({
-      command,
-      output: output || "(no output)",
-      timestamp: Date.now(),
-    });
+    session.logs.push({ command, output, timestamp: Date.now() });
     session.lastUsed = Date.now();
   }
 }
 
-// ─── Get Active Sandboxes ─────────────────────────────────────────────────────
-export function getActiveSandboxes() {
-  const active = [];
+export function getActiveSandboxes(): Array<{
+  sessionId: string;
+  sandboxId: string;
+  ageSeconds: number;
+  logCount: number;
+}> {
   const now = Date.now();
-  for (const [id, session] of sandboxSessions.entries()) {
-    active.push({
-      sessionId: id,
-      sandboxId: session.sandbox.sandboxId,
-      ageSeconds: Math.floor((now - session.lastUsed) / 1000),
-      logs: session.logs,
-    });
-  }
-  return active;
+  return Array.from(sandboxSessions.values()).map((s) => ({
+    sessionId: s.sessionId,
+    sandboxId: s.sandboxId,
+    ageSeconds: Math.round((now - s.lastUsed) / 1000),
+    logCount: s.logs.length,
+  }));
 }

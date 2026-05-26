@@ -1,21 +1,42 @@
-import { QdrantClient } from '@qdrant/js-client-rest';
+/**
+ * ULTRON v3.0 — Vector Search Client
+ * Supports Qdrant standalone or pgvector (via API adapter).
+ * Lazy initialization to prevent crashes when servers are unavailable.
+ */
 
-const qdrantUrl = process.env.QDRANT_URL || 'http://localhost:6333';
-const qdrantApiKey = process.env.QDRANT_API_KEY || '';
+import { QdrantClient } from "@qdrant/js-client-rest";
 
-export const qdrant = new QdrantClient({
-  url: qdrantUrl,
-  apiKey: qdrantApiKey,
-});
+let client: QdrantClient | null = null;
 
-export async function searchCVEs(queryVector: number[], collection = 'cve_exploits', topK = 5) {
-  try {
-    return await qdrant.search(collection, {
-      vector: queryVector,
-      limit: topK,
+function getClient(): QdrantClient {
+  if (!client) {
+    client = new QdrantClient({
+      url: process.env.QDRANT_URL ?? "http://localhost:6333",
+      apiKey: process.env.QDRANT_API_KEY,
     });
-  } catch (error) {
-    console.error('[Qdrant Search Error]', error);
-    return [];
   }
+  return client;
+}
+
+interface SearchResult {
+  id: string | number;
+  score: number;
+  payload: Record<string, unknown>;
+}
+
+export async function searchCVEs(
+  queryVector: number[],
+  collection = "cve_exploits",
+  topK = 5,
+): Promise<SearchResult[]> {
+  const results = await getClient().search(collection, {
+    vector: queryVector,
+    limit: topK,
+  });
+
+  return results.map((r) => ({
+    id: r.id,
+    score: r.score,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
+  }));
 }

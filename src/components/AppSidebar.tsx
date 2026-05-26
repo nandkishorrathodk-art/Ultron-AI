@@ -13,7 +13,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 
 const items = [
   {
@@ -39,10 +38,10 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-2 font-bold text-xl text-primary">
           <Shield className="w-6 h-6" />
-          <span>Ultron</span>
+          <span>Ultron v3.0</span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
@@ -59,31 +58,24 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        
+
         <SidebarGroup>
-          <SidebarGroupLabel>Recent Scans</SidebarGroupLabel>
+          <SidebarGroupLabel>Recent Flows</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* This will be populated by Convex later */}
               <SidebarMenuItem>
-                <SidebarMenuButton render={<a href="#" />}>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  <span>scanme.nmap.org</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<a href="#" />}>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  <span>Localhost Recon</span>
-                </SidebarMenuButton>
+                <div className="px-3 py-2 text-xs text-muted-foreground">
+                  <MessageSquare className="w-3 h-3 inline mr-1" />
+                  Connect Convex to see recent flows
+                </div>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
+
       <SidebarFooter className="p-4 border-t text-sm text-muted-foreground text-center">
-        Ultron v3.0
+        Ultron v3.0 — ULTRON-X
       </SidebarFooter>
     </Sidebar>
   );
