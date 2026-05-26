@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Send, TerminalSquare, User, Globe, FileText, FileEdit, Package } from "lucide-react";
+import { Shield, Send, TerminalSquare, User, Globe, FileText, FileEdit, Package, PanelRightOpen } from "lucide-react";
+import { MonitorPanel } from "@/components/MonitorPanel";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentApprovalGate } from "@/components/AgentApprovalGate";
@@ -199,6 +200,7 @@ function ToolInvocationDisplay({
 export default function Home() {
   const [input, setInput] = useState("");
   const [detectedMode, setDetectedMode] = useState<FlowMode>("standard");
+  const [showMonitor, setShowMonitor] = useState(false);
 
   const [transport] = useState(
     () =>
@@ -315,8 +317,8 @@ export default function Home() {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
           <ScrollArea className="flex-1 p-6 h-full">
             <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full pb-10">
               {/* Welcome Message */}
@@ -503,6 +505,22 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Monitor Panel Toggle */}
+        {!showMonitor && (
+          <button
+            className="absolute top-4 right-4 z-20 p-2 rounded-lg bg-muted/80 hover:bg-muted border border-muted-foreground/20 text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowMonitor(true)}
+            title="Open monitor panel"
+          >
+            <PanelRightOpen className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Monitor Side Panel */}
+        {showMonitor && (
+          <MonitorPanel onClose={() => setShowMonitor(false)} />
+        )}
       </div>
     </div>
   );
