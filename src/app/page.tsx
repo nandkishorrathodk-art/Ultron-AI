@@ -12,6 +12,22 @@ import { AgentApprovalGate } from "@/components/AgentApprovalGate";
 import { useState, useRef, useCallback } from "react";
 import type { FlowMode } from "@/lib/agent/flow";
 
+// ─── Auto Flow Mode Detection ─────────────────────────────────────────────────
+const FLOW_MODE_PATTERNS: { mode: FlowMode; patterns: RegExp[] }[] = [
+  { mode: "ctf", patterns: [/\bctf\b/i, /\bcapture.the.flag\b/i, /\bchallenge\b/i, /\bflag\b/i] },
+  { mode: "bug_bounty", patterns: [/\bbug.?bounty\b/i, /\bhackerone\b/i, /\bbugcrowd\b/i, /\bbounty\b/i] },
+  { mode: "ai_redteam", patterns: [/\bai.?red.?team/i, /\bllm.?(attack|inject|jailbreak)/i, /\bprompt.?inject/i] },
+  { mode: "cicd", patterns: [/\bci\/?cd\b/i, /\bpipeline\b/i, /\bgithub.?action/i, /\bjenkins\b/i, /\bdevops\b/i] },
+  { mode: "continuous", patterns: [/\bcontinuous\b/i, /\bmonitor/i, /\b24\/7\b/i, /\bscheduled?\b/i] },
+];
+
+function detectFlowMode(message: string): FlowMode {
+  for (const { mode, patterns } of FLOW_MODE_PATTERNS) {
+    if (patterns.some((p) => p.test(message))) return mode;
+  }
+  return "standard";
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ToolArgs {
   command?: string;
@@ -175,21 +191,10 @@ function ToolInvocationDisplay({
   );
 }
 
-// ─── Flow Mode Options ────────────────────────────────────────────────────────
-const FLOW_MODES: { value: FlowMode; label: string }[] = [
-  { value: "standard", label: "Standard" },
-  { value: "ctf", label: "CTF" },
-  { value: "bug_bounty", label: "Bug Bounty" },
-  { value: "continuous", label: "Continuous" },
-  { value: "ai_redteam", label: "AI Red Team" },
-  { value: "cicd", label: "CI/CD" },
-];
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
   const [input, setInput] = useState("");
-  const [targetScope, setTargetScope] = useState("example.com");
-  const [attackMode, setAttackMode] = useState<FlowMode>("standard");
+  const [detectedMode, setDetectedMode] = useState<FlowMode | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
   const chatResult = useChat({
@@ -208,11 +213,13 @@ export default function Home() {
     const value = input;
     setInput("");
 
-    const finalContent = messages.length === 0
-      ? `[Target Scope: ${targetScope}] [Mode: ${attackMode.toUpperCase()}] ${value}`
-      : value;
-
-    sendMessage({ text: finalContent });
+    if (messages.length === 0) {
+      const mode = detectFlowMode(value);
+      setDetectedMode(mode);
+      sendMessage({ text: `[Mode: ${mode.toUpperCase()}] ${value}` });
+    } else {
+      sendMessage({ text: value });
+    }
   };
 
   const handleApprove = useCallback(
@@ -302,46 +309,14 @@ export default function Home() {
                         Welcome to Ultron v3.0 — ULTRON-X
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Configure your target scope and specialized attack mode below
-                        before initiating E2B sandbox execution.
+                        Just describe what you want to do — Ultron will automatically detect the
+                        attack mode and target from your message.
                       </p>
                     </div>
 
-                    {/* Settings Panel */}
-                    <div className="space-y-4 bg-background/50 border border-muted p-4 rounded-lg">
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                          Target Scope
-                        </label>
-                        <Input
-                          value={targetScope}
-                          onChange={(e) => setTargetScope(e.target.value)}
-                          placeholder="e.g. target.com or 192.168.1.100"
-                          className="bg-background border-muted"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                          Flow Mode
-                        </label>
-                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                          {FLOW_MODES.map((mode) => (
-                            <Button
-                              key={mode.value}
-                              type="button"
-                              variant={attackMode === mode.value ? "default" : "outline"}
-                              onClick={() => setAttackMode(mode.value)}
-                              className="text-xs h-9"
-                            >
-                              {mode.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Card className="bg-background/50 border-primary/20">
+                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => { setInput("Run an nmap scan on scanme.nmap.org"); }}>
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
                             <TerminalSquare className="w-4 h-4" />
@@ -349,18 +324,43 @@ export default function Home() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
-                          &quot;Run an nmap scan on target.com&quot;
+                          &quot;Run an nmap scan on scanme.nmap.org&quot;
                         </CardContent>
                       </Card>
-                      <Card className="bg-background/50 border-primary/20">
+                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => { setInput("Find hidden directories on example.com using gobuster"); }}>
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
-                            <TerminalSquare className="w-4 h-4" />
+                            <Globe className="w-4 h-4" />
                             Web Scanning
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
                           &quot;Find hidden directories on example.com using gobuster&quot;
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => { setInput("Solve this CTF challenge: find the hidden flag"); }}>
+                        <CardHeader className="p-3 pb-1">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            CTF Mode
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
+                          &quot;Solve this CTF challenge: find the hidden flag&quot;
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => { setInput("Run a bug bounty recon on example.com"); }}>
+                        <CardHeader className="p-3 pb-1">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Bug Bounty
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
+                          &quot;Run a bug bounty recon on example.com&quot;
                         </CardContent>
                       </Card>
                     </div>
