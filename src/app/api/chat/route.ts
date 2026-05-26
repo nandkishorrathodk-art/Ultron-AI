@@ -532,7 +532,7 @@ export async function POST(req: Request) {
         });
 
         const result = streamText({
-          model: provider(modelConfig.model),
+          model: provider.chat(modelConfig.model),
           system: SYSTEM_PROMPT,
           messages: cleanMessages as ModelMessage[],
           stopWhen: stepCountIs(8),
