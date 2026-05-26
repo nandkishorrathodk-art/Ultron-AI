@@ -22,6 +22,7 @@ import { getOrCreateSandbox, killSandbox, addSandboxLog } from "@/lib/sandbox-ma
 import { validateRequest } from "@/lib/auth";
 import { filterToolOutput } from "@/lib/cot-filter";
 import { getModelChain } from "@/lib/models";
+import { trackFileChange, addWorklogEntry, addShellEntry, trackIDEFile } from "@/lib/session-tracker";
 
 export const maxDuration = 60;
 
@@ -272,6 +273,8 @@ function buildTools(sessionId: string) {
 
           const rawOutput = exec.stdout + (exec.stderr ? "\n" + exec.stderr : "");
           addSandboxLog(sessionId, command, rawOutput);
+          addShellEntry(sessionId, command, exec.stdout, exec.stderr, exec.exitCode, Date.now() - Date.now());
+          addWorklogEntry(sessionId, "command", `$ ${command}`, "success", rawOutput.slice(0, 500));
 
           const filtered = filterToolOutput("execute_bash", rawOutput);
 
@@ -286,6 +289,8 @@ function buildTools(sessionId: string) {
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           addSandboxLog(sessionId, command, `ERROR: ${errMsg}`);
+          addShellEntry(sessionId, command, "", errMsg, -1, 0);
+          addWorklogEntry(sessionId, "command", `$ ${command}`, "error", errMsg);
           return {
             status: "error",
             risk_level: risk,
@@ -378,6 +383,7 @@ function buildTools(sessionId: string) {
             return { status: "success" as const, source: "tavily", query, result: results || "No results" };
           }
 
+          addWorklogEntry(sessionId, "web_search", `Search: ${query}`, "error", "No search API key configured");
           return {
             status: "no_api_key" as const,
             query,
@@ -385,6 +391,7 @@ function buildTools(sessionId: string) {
           };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          addWorklogEntry(sessionId, "web_search", `Search: ${query}`, "error", message);
           return { status: "error" as const, query, error: message };
         }
       },
@@ -409,13 +416,18 @@ function buildTools(sessionId: string) {
             `test -f '${safePath}' && head -n ${safeLines} '${safePath}' || echo 'FILE NOT FOUND: ${safePath}'`,
             { timeoutMs: TOOL_TIMEOUTS.read_file },
           );
+          const fileContent = exec.stdout || "(empty file)";
+          trackFileChange(sessionId, safePath, "read", fileContent);
+          trackIDEFile(sessionId, safePath, fileContent);
+          addWorklogEntry(sessionId, "file_read", `Read ${safePath}`, "success");
           return {
             status: "success" as const,
             path: safePath,
-            content: exec.stdout || "(empty file)",
+            content: fileContent,
           };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          addWorklogEntry(sessionId, "file_read", `Read ${path}`, "error", message);
           return { status: "error" as const, path, error: message };
         }
       },
@@ -441,9 +453,13 @@ function buildTools(sessionId: string) {
             `mkdir -p "$(dirname '${safePath}')" && printf '%s' '${encoded}' | base64 -d > '${safePath}'`,
             { timeoutMs: TOOL_TIMEOUTS.write_file },
           );
+          trackFileChange(sessionId, safePath, "write", content, content.length);
+          trackIDEFile(sessionId, safePath, content);
+          addWorklogEntry(sessionId, "file_write", `Wrote ${safePath} (${content.length} bytes)`, "success");
           return { status: "success" as const, path: safePath, bytes: content.length };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          addWorklogEntry(sessionId, "file_write", `Write ${path}`, "error", message);
           return { status: "error" as const, path, error: message };
         }
       },
@@ -477,6 +493,7 @@ function buildTools(sessionId: string) {
           const exec = await sandbox.commands.run(cmd, {
             timeoutMs: TOOL_TIMEOUTS.install_tool,
           });
+          addWorklogEntry(sessionId, "tool_install", `Installed ${tool_name} via ${method}`, "success");
           return {
             status: "success" as const,
             tool_name,
@@ -485,6 +502,7 @@ function buildTools(sessionId: string) {
           };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          addWorklogEntry(sessionId, "tool_install", `Install ${tool_name} via ${method}`, "error", message);
           return { status: "error" as const, tool_name, error: message };
         }
       },

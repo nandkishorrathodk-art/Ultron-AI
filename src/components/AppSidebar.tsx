@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare, Settings, Terminal, Shield, PlusCircle, LogOut } from "lucide-react";
+import { MessageSquare, Settings, Terminal, Shield, PlusCircle, LogOut, FileEdit, ClipboardList, Monitor, TerminalSquare, Code, Bot } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   Sidebar,
@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const items = [
+const mainItems = [
   {
     title: "New Pentest",
     url: "/",
@@ -26,6 +26,48 @@ const items = [
     url: "/sandbox",
     icon: Terminal,
   },
+];
+
+const monitorItems = [
+  {
+    title: "Changes",
+    url: "/changes",
+    icon: FileEdit,
+    description: "File edits",
+  },
+  {
+    title: "Worklog",
+    url: "/worklog",
+    icon: ClipboardList,
+    description: "History & actions",
+  },
+  {
+    title: "Desktop",
+    url: "/desktop",
+    icon: Monitor,
+    description: "Watch & control",
+  },
+  {
+    title: "Shell",
+    url: "/shell",
+    icon: TerminalSquare,
+    description: "Command history",
+  },
+  {
+    title: "IDE",
+    url: "/ide",
+    icon: Code,
+    description: "File viewer",
+  },
+  {
+    title: "Agents",
+    url: "/agents",
+    icon: Bot,
+    description: "Child sessions",
+  },
+];
+
+const settingsItems = [
   {
     title: "Settings",
     url: "/settings",
@@ -53,10 +95,42 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>Pentest</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {mainItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton render={<a href={item.url} />}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Monitor</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {monitorItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton render={<a href={item.url} />}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>System</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton render={<a href={item.url} />}>
                     <item.icon />
