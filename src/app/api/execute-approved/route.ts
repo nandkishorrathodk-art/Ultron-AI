@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { getOrCreateSandbox } from "@/lib/sandbox-manager";
 import { validateRequest } from "@/lib/auth";
 
-function isValidUUID(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+function isValidToolCallId(value: string): boolean {
+  // AI SDK tool call IDs vary by provider:
+  //   OpenAI: "call_<alphanum>"
+  //   Anthropic: "toolu_<alphanum>"
+  //   UUID fallback: standard UUID format
+  // Accept any alphanumeric string with hyphens/underscores, 5–128 chars
+  return /^[a-zA-Z0-9_-]{5,128}$/.test(value);
 }
 
 export async function POST(req: Request) {
@@ -27,7 +32,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!isValidUUID(approvalToken)) {
+    if (!isValidToolCallId(approvalToken)) {
       return NextResponse.json(
         { error: "Invalid approvalToken format — must be a valid tool call ID" },
         { status: 403 },

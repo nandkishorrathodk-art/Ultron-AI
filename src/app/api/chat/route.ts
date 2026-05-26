@@ -267,13 +267,15 @@ function buildTools(sessionId: string) {
           const sandbox = await getOrCreateSandbox(sessionId);
           console.log(`[Ultron] [${risk.toUpperCase()}] ${command}`);
 
+          const startTime = Date.now();
           const exec = await sandbox.commands.run(command, {
             timeoutMs: TOOL_TIMEOUTS.execute_bash,
           });
+          const durationMs = Date.now() - startTime;
 
           const rawOutput = exec.stdout + (exec.stderr ? "\n" + exec.stderr : "");
           addSandboxLog(sessionId, command, rawOutput);
-          addShellEntry(sessionId, command, exec.stdout, exec.stderr, exec.exitCode, Date.now() - Date.now());
+          addShellEntry(sessionId, command, exec.stdout, exec.stderr, exec.exitCode, durationMs);
           addWorklogEntry(sessionId, "command", `$ ${command}`, "success", rawOutput.slice(0, 500));
 
           const filtered = filterToolOutput("execute_bash", rawOutput);
@@ -330,11 +332,13 @@ function buildTools(sessionId: string) {
               signal: AbortSignal.timeout(TOOL_TIMEOUTS.web_search),
             });
             const data = await res.json();
+            const result = data.choices?.[0]?.message?.content ?? "No results";
+            addWorklogEntry(sessionId, "web_search", `Search: ${query}`, "success", result.slice(0, 500));
             return {
               status: "success" as const,
               source: "perplexity",
               query,
-              result: data.choices?.[0]?.message?.content ?? "No results",
+              result,
             };
           }
 
@@ -354,6 +358,7 @@ function buildTools(sessionId: string) {
               .slice(0, 5)
               .map((r: SerperResult) => `**${r.title}**\n${r.link}\n${r.snippet}`)
               .join("\n\n---\n\n");
+            addWorklogEntry(sessionId, "web_search", `Search: ${query}`, "success", (results || "No results").slice(0, 500));
             return {
               status: "success" as const,
               source: "serper",
@@ -380,6 +385,7 @@ function buildTools(sessionId: string) {
             const results = (data.results ?? [])
               .map((r: TavilyResult) => `**${r.title}**\n${r.url}\n${r.content}`)
               .join("\n\n---\n\n");
+            addWorklogEntry(sessionId, "web_search", `Search: ${query}`, "success", (results || "No results").slice(0, 500));
             return { status: "success" as const, source: "tavily", query, result: results || "No results" };
           }
 
