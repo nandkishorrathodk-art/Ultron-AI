@@ -2,11 +2,11 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
 export const getPending = query({
-  args: { sessionId: v.id("pentest_sessions") },
+  args: { flowId: v.id("flows") },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("hitl_approvals")
-      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .withIndex("by_flowId", (q) => q.eq("flowId", args.flowId))
       .filter((q) => q.eq(q.field("decision"), "pending"))
       .first();
   },
@@ -14,7 +14,7 @@ export const getPending = query({
 
 export const requestApproval = mutation({
   args: {
-    sessionId: v.id("pentest_sessions"),
+    flowId: v.id("flows"),
     taskId: v.string(),
     riskLevel: v.union(v.literal("yellow"), v.literal("red")),
     command: v.string(),
@@ -24,7 +24,7 @@ export const requestApproval = mutation({
   handler: async (ctx, args) => {
     const timeoutMs = (args.timeoutSeconds || 300) * 1000;
     const id = await ctx.db.insert("hitl_approvals", {
-      sessionId: args.sessionId,
+      flowId: args.flowId,
       taskId: args.taskId,
       riskLevel: args.riskLevel,
       command: args.command,

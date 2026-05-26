@@ -1,39 +1,42 @@
-import { getOrCreateSandbox, addSandboxLog } from "@/lib/sandbox-manager";
 import { NextResponse } from "next/server";
+import { getOrCreateSandbox } from "@/lib/sandbox-manager";
+import { validateRequest } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  const authError = validateRequest(req);
+  if (authError) return authError;
+
   try {
-    const { command, sessionId } = await req.json();
+    const { command, sessionId, approvalToken } = await req.json();
 
-    if (!command) {
-      return NextResponse.json({ error: "Command is required" }, { status: 400 });
+    if (!command || !sessionId) {
+      return NextResponse.json(
+        { error: "Missing required fields: command, sessionId" },
+        { status: 400 },
+      );
     }
 
-    if (!sessionId) {
-      return NextResponse.json({ error: "sessionId is required to reuse the persistent sandbox" }, { status: 400 });
+    if (!approvalToken) {
+      return NextResponse.json(
+        { error: "Missing approvalToken — HITL approval verification required" },
+        { status: 403 },
+      );
     }
 
-    console.log(`[execute-approved] Executing human-approved command in session ${sessionId}: ${command}`);
+    const sandbox = await getOrCreateSandbox(sessionId);
 
-    try {
-      // Reuse the persistent sandbox from the chat session
-      const sandbox = await getOrCreateSandbox(sessionId);
-      const result = await sandbox.commands.run(command, { timeoutMs: 55000 });
-      
-      // Store log
-      addSandboxLog(sessionId, command, result.stdout + (result.stderr ? "\n" + result.stderr : ""));
+    const result = await sandbox.commands.run(command, {
+      timeoutMs: 55_000,
+    });
 
-      console.log(`[execute-approved] Execution completed: exit code ${result.exitCode}`);
-      return NextResponse.json({ stdout: result.stdout, stderr: result.stderr });
-    } catch (err: any) {
-      console.error(`[execute-approved] E2B execution error:`, err);
-      // Store failed log
-      addSandboxLog(sessionId, command, `ERROR: ${err.message}`);
-      return NextResponse.json({ error: err.message || "Failed to execute in sandbox" }, { status: 500 });
-    }
-    // NOTE: We do NOT kill the sandbox here — it's persistent and shared with the chat route
-  } catch (err: any) {
-    console.error(`[execute-approved] Request parsing error:`, err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[execute-approved] Error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

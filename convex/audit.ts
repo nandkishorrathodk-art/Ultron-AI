@@ -3,15 +3,24 @@ import { mutation, query } from "./_generated/server";
 
 export const logEvent = mutation({
   args: {
-    sessionId: v.id("pentest_sessions"),
-    eventType: v.union(v.literal("llm_call"), v.literal("tool_invocation"), v.literal("sandbox_command"), v.literal("hitl_decision")),
-    payload: v.any(),
+    sessionId: v.string(),
+    flowId: v.optional(v.id("flows")),
+    taskId: v.optional(v.string()),
+    eventType: v.union(
+      v.literal("llm_reasoning"),
+      v.literal("tool_call"),
+      v.literal("sandbox_cmd"),
+      v.literal("hitl"),
+      v.literal("oob_callback"),
+      v.literal("finding"),
+    ),
+    payload: v.string(),
   },
   handler: async (ctx, args) => {
-    // Audit logs are strictly immutable: only inserts allowed.
-    // There are no patch/delete endpoints for this table.
-    const id = await ctx.db.insert("audit_log", {
+    const id = await ctx.db.insert("observability_events", {
       sessionId: args.sessionId,
+      flowId: args.flowId,
+      taskId: args.taskId,
       eventType: args.eventType,
       payload: args.payload,
       timestamp: Date.now(),
@@ -21,10 +30,10 @@ export const logEvent = mutation({
 });
 
 export const getBySession = query({
-  args: { sessionId: v.id("pentest_sessions") },
+  args: { sessionId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("audit_log")
+      .query("observability_events")
       .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
       .order("asc")
       .collect();
