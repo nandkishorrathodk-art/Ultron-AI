@@ -1,6 +1,7 @@
 "use client";
 
-import { MessageSquare, Settings, Terminal, Shield, PlusCircle } from "lucide-react";
+import { MessageSquare, Settings, Terminal, Shield, PlusCircle, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +34,14 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
@@ -74,8 +83,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t text-sm text-muted-foreground text-center">
-        Ultron v3.0 — ULTRON-X
+      <SidebarFooter className="p-4 border-t">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={handleLogout}>
+              <LogOut />
+              <span>Logout</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <div className="text-xs text-muted-foreground text-center mt-2">
+          Ultron v3.0 — ULTRON-X
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

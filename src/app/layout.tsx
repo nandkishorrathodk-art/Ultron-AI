@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppSidebar } from "@/components/AppSidebar";
+import { AuthShell } from "@/components/AuthShell";
 
 export const metadata: Metadata = {
   title: "Ultron - AI Pentesting Assistant",
@@ -35,17 +34,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ConvexClientProvider>
           <TooltipProvider>
-            <SidebarProvider>
-              <div className="flex h-screen w-full overflow-hidden">
-                <AppSidebar />
-                <main className="flex-1 flex flex-col overflow-hidden relative">
-                  <div className="absolute top-4 left-4 z-10 md:hidden">
-                    <SidebarTrigger />
-                  </div>
-                  {children}
-                </main>
-              </div>
-            </SidebarProvider>
+            <AuthShell>{children}</AuthShell>
           </TooltipProvider>
         </ConvexClientProvider>
       </body>
