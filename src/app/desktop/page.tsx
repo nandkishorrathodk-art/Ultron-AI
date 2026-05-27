@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Monitor, Maximize2, ZoomIn, ZoomOut, MousePointer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DesktopSimulator } from "@/components/DesktopSimulator";
 
 interface SandboxInfo {
   sessionId: string;
@@ -112,51 +113,10 @@ export default function DesktopPage() {
         <div className="flex-1 flex items-center justify-center bg-black/90 p-4">
           {selectedSandbox ? (
             <div
-              className="w-full max-w-5xl aspect-video bg-gray-950 rounded-lg border border-muted/30 overflow-hidden relative"
+              className="w-full max-w-5xl aspect-video rounded-lg overflow-hidden relative"
               style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center center" }}
             >
-              {/* Simulated Desktop */}
-              <div className="h-full flex flex-col">
-                {/* Title Bar */}
-                <div className="h-8 bg-gray-800 flex items-center px-3 gap-2 shrink-0">
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                    <div className="w-3 h-3 rounded-full bg-green-500" />
-                  </div>
-                  <span className="text-xs text-gray-400 ml-2 font-mono">
-                    root@e2b-sandbox — {selectedSandbox.substring(0, 12)}
-                  </span>
-                </div>
-
-                {/* Terminal Content */}
-                <div className="flex-1 bg-gray-950 p-4 font-mono text-sm text-green-400 overflow-auto">
-                  <div className="space-y-1">
-                    <p className="text-gray-500">Last login: {new Date().toUTCString()}</p>
-                    <p><span className="text-primary font-bold">root@e2b-sandbox:~#</span> <span className="text-white">whoami</span></p>
-                    <p>root</p>
-                    <p><span className="text-primary font-bold">root@e2b-sandbox:~#</span> <span className="text-white">ls /home/user/pentest/</span></p>
-                    <p>findings.md  recon/  exploits/  reports/</p>
-                    <p><span className="text-primary font-bold">root@e2b-sandbox:~#</span> <span className="text-white">cat /home/user/pentest/findings.md</span></p>
-                    <p className="text-gray-400"># Ultron v3.0 Findings</p>
-                    <p className="text-gray-400">Pentest session in progress...</p>
-                    <p className="mt-2"><span className="text-primary font-bold">root@e2b-sandbox:~#</span> <span className="animate-pulse text-white">_</span></p>
-                  </div>
-                </div>
-
-                {/* Status Bar */}
-                <div className="h-6 bg-gray-800 flex items-center justify-between px-3 text-xs text-gray-500 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <MousePointer className="w-3 h-3" />
-                    <span>E2B Micro-VM</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span>Debian 12</span>
-                    <span>•</span>
-                    <span className="text-green-400">Connected</span>
-                  </div>
-                </div>
-              </div>
+              <DesktopSimulator sessionId={selectedSandbox} />
             </div>
           ) : (
             <Card className="border-dashed border-muted p-12 text-center flex flex-col items-center justify-center gap-4 bg-muted/10">
