@@ -17,6 +17,8 @@ export default function DesktopPage() {
   const [selectedSandbox, setSelectedSandbox] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoom, setZoom] = useState(100);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +50,55 @@ export default function DesktopPage() {
       clearInterval(interval);
     };
   }, []);
+
+  // Fetch stream URL for selected sandbox
+  useEffect(() => {
+    if (!selectedSandbox) {
+      setStreamUrl(null);
+      return;
+    }
+
+    let active = true;
+    const checkStream = () => {
+      fetch(`/api/desktop/stream?sessionId=${selectedSandbox}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!active) return;
+          if (data.success && data.streamUrl) {
+            setStreamUrl(data.streamUrl);
+          } else {
+            setStreamUrl(null);
+          }
+        })
+        .catch(() => {
+          if (active) setStreamUrl(null);
+        });
+    };
+
+    checkStream();
+    const interval = setInterval(checkStream, 4000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [selectedSandbox]);
+
+  const handleLaunchDesktop = async () => {
+    if (!selectedSandbox) return;
+    setLaunching(true);
+    try {
+      const res = await fetch(`/api/desktop/stream?sessionId=${selectedSandbox}&init=true`);
+      const data = await res.json();
+      if (data.success && data.streamUrl) {
+        setStreamUrl(data.streamUrl);
+      }
+    } catch (err) {
+      console.error("[Ultron] Launch failed:", err);
+    } finally {
+      setLaunching(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-background/95">
@@ -110,13 +161,48 @@ export default function DesktopPage() {
         </div>
 
         {/* Desktop Viewer */}
-        <div className="flex-1 flex items-center justify-center bg-black/90 p-4">
+        <div className="flex-1 flex flex-col items-center justify-center bg-black/90 p-4 overflow-auto">
           {selectedSandbox ? (
-            <div
-              className="w-full max-w-5xl aspect-video rounded-lg overflow-hidden relative"
-              style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center center" }}
-            >
-              <DesktopSimulator sessionId={selectedSandbox} />
+            <div className="w-full max-w-5xl flex flex-col gap-4">
+              <div className="flex justify-between items-center bg-card/40 p-3 rounded-lg border border-border/60 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${streamUrl ? 'bg-green-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                  <span className="text-xs md:text-sm font-medium">
+                    {streamUrl ? "Streaming Live E2B GUI Desktop" : "Simulated UI (Spawn a real E2B Desktop VM to stream below)"}
+                  </span>
+                </div>
+                {!streamUrl && (
+                  <Button
+                    onClick={handleLaunchDesktop}
+                    disabled={launching}
+                    size="sm"
+                    className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold px-4 rounded-md shadow-lg transition duration-200"
+                  >
+                    {launching ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                        Spawning GUI VM...
+                      </>
+                    ) : (
+                      "Spawn Live GUI VM"
+                    )}
+                  </Button>
+                )}
+              </div>
+              <div
+                className="w-full aspect-video rounded-lg overflow-hidden relative border border-border/80 shadow-2xl bg-black"
+                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+              >
+                {streamUrl ? (
+                  <iframe
+                    src={streamUrl}
+                    className="w-full h-full border-0"
+                    allow="autoplay; encrypted-media; fullscreen"
+                  />
+                ) : (
+                  <DesktopSimulator sessionId={selectedSandbox} />
+                )}
+              </div>
             </div>
           ) : (
             <Card className="border-dashed border-muted p-12 text-center flex flex-col items-center justify-center gap-4 bg-muted/10">

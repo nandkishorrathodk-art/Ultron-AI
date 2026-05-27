@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { MessageSquare, Settings, Terminal, Shield, PlusCircle } from "lucide-react";
 import {
   Sidebar,
@@ -13,7 +14,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 
 const items = [
   {
@@ -34,6 +34,51 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const [recentScans, setRecentScans] = useState<string[]>([]);
+
+  useEffect(() => {
+    // 1. Initial load of recent sessions from active sandboxes API
+    const fetchActiveSessions = () => {
+      fetch("/api/sandboxes")
+        .then((res) => res.json())
+        .then((data) => {
+          const activeSbs = data.sandboxes ?? [];
+          const sessionIds = activeSbs.map((sb: any) => sb.sessionId);
+          
+          // Merge with stored sessions from localStorage for persistence
+          const stored = localStorage.getItem("ultron_recent_scans");
+          let scans = sessionIds;
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              // deduplicate and maintain order
+              scans = Array.from(new Set([...sessionIds, ...parsed]));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+          
+          // Limit to last 5 scans
+          const trimmed = scans.slice(0, 5);
+          setRecentScans(trimmed);
+          localStorage.setItem("ultron_recent_scans", JSON.stringify(trimmed));
+        })
+        .catch(() => {
+          // Fallback to localStorage if API fails or auth is pending
+          const stored = localStorage.getItem("ultron_recent_scans");
+          if (stored) {
+            try {
+              setRecentScans(JSON.parse(stored).slice(0, 5));
+            } catch {}
+          }
+        });
+    };
+
+    fetchActiveSessions();
+    const interval = setInterval(fetchActiveSessions, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
@@ -64,19 +109,22 @@ export function AppSidebar() {
           <SidebarGroupLabel>Recent Scans</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* This will be populated by Convex later */}
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<a href="#" />}>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  <span>scanme.nmap.org</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton render={<a href="#" />}>
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  <span>Localhost Recon</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {recentScans.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground italic">
+                  No recent scans
+                </div>
+              ) : (
+                recentScans.map((scan) => (
+                  <SidebarMenuItem key={scan}>
+                    <SidebarMenuButton render={<a href={`/?sessionId=${scan}`} />}>
+                      <MessageSquare className="w-4 h-4 mr-2 text-primary/70 shrink-0" />
+                      <span className="truncate font-mono text-xs">
+                        {scan.startsWith("session_") ? scan.replace("session_", "Session ") : scan}
+                      </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

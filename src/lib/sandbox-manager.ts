@@ -34,7 +34,7 @@ setInterval(() => {
 }, 60_000);
 
 // ─── Get or Create Sandbox ────────────────────────────────────────────────────
-export async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
+export async function getOrCreateSandbox(sessionId: string, template?: string): Promise<Sandbox> {
   const existing = sandboxSessions.get(sessionId);
   if (existing) {
     existing.lastUsed = Date.now();
@@ -42,8 +42,13 @@ export async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
     return existing.sandbox;
   }
 
-  console.log(`[Ultron] Creating new sandbox for session: ${sessionId}`);
-  const sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY! });
+  console.log(`[Ultron] Creating new sandbox for session: ${sessionId}${template ? ` with template: ${template}` : ""}`);
+  
+  const options: any = { apiKey: process.env.E2B_API_KEY! };
+  if (template) {
+    options.template = template;
+  }
+  const sandbox = await Sandbox.create(options);
 
   // Bootstrap pentest workspace on first creation
   await sandbox.commands.run(
@@ -54,6 +59,19 @@ export async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
 
   sandboxSessions.set(sessionId, { sandbox, lastUsed: Date.now(), logs: [] });
   return sandbox;
+}
+
+// ─── Get Desktop Stream URL ──────────────────────────────────────────────────
+export function getDesktopStreamUrl(sessionId: string): string | null {
+  const session = sandboxSessions.get(sessionId);
+  if (!session) return null;
+  try {
+    // E2B desktop template exposes noVNC on port 6080
+    return `https://${session.sandbox.getHost(6080)}`;
+  } catch (err) {
+    console.error("[Ultron] Error getting desktop stream URL:", err);
+    return null;
+  }
 }
 
 // ─── Kill Sandbox ─────────────────────────────────────────────────────────────

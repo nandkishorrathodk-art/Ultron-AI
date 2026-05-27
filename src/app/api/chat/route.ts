@@ -16,6 +16,8 @@ import { streamText, tool } from "ai";
 import { z } from "zod";
 import { getOrCreateSandbox, killSandbox, addSandboxLog } from "@/lib/sandbox-manager";
 import { PentestCoordinator } from "../../../lib/agent/coordinator";
+import { addShellEntry, addWorklogEntry, trackFileChange, trackIDEFile } from "@/lib/session-tracker";
+import { runtimeSettings } from "@/lib/runtime-settings";
 
 export const maxDuration = 60;
 
@@ -230,6 +232,7 @@ function buildTools(sessionId: string) {
           console.log(`[Ultron] ⚠️ YELLOW: ${command}`);
         }
 
+        const startTime = Date.now();
         try {
           // v3: reuse persistent sandbox instead of creating new one
           const sandbox = await getOrCreateSandbox(sessionId);
@@ -240,7 +243,17 @@ function buildTools(sessionId: string) {
             timeoutMs: TOOL_TIMEOUTS.execute_bash,
           });
 
+          const durationMs = Date.now() - startTime;
           addSandboxLog(sessionId, command, exec.stdout + (exec.stderr ? "\n" + exec.stderr : ""));
+
+          addShellEntry(sessionId, command, exec.stdout, exec.stderr, exec.exitCode, durationMs);
+          addWorklogEntry(
+            sessionId,
+            "command",
+            `Executed shell command: ${command.slice(0, 60)}${command.length > 60 ? "..." : ""}`,
+            exec.exitCode === 0 ? "success" : "error",
+            `Exit code: ${exec.exitCode}\n\nSTDOUT:\n${exec.stdout.slice(0, 1000)}\n\nSTDERR:\n${exec.stderr.slice(0, 1000)}`
+          );
 
           return {
             status: "success",
@@ -251,7 +264,16 @@ function buildTools(sessionId: string) {
             exit_code: exec.exitCode,
           };
         } catch (err: any) {
+          const durationMs = Date.now() - startTime;
           addSandboxLog(sessionId, command, `ERROR: ${err.message}`);
+          addShellEntry(sessionId, command, "", err.message, -1, durationMs);
+          addWorklogEntry(
+            sessionId,
+            "command",
+            `Failed command: ${command.slice(0, 60)}${command.length > 60 ? "..." : ""}`,
+            "error",
+            err.message
+          );
           return {
             status: "error",
             risk_level: risk,
@@ -278,6 +300,9 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ query }) => {
         try {
+          let resultText = "";
+          let source = "";
+
           // Primary: Perplexity (best for security research)
           if (process.env.PERPLEXITY_API_KEY) {
             const res = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -294,16 +319,11 @@ function buildTools(sessionId: string) {
               signal: AbortSignal.timeout(TOOL_TIMEOUTS.web_search),
             });
             const data = await res.json();
-            return {
-              status: "success",
-              source: "perplexity",
-              query,
-              result: data.choices?.[0]?.message?.content ?? "No results",
-            };
+            resultText = data.choices?.[0]?.message?.content ?? "No results";
+            source = "perplexity";
           }
-
           // Fallback: Serper.dev Google Search API
-          if (process.env.SERPER_API_KEY) {
+          else if (process.env.SERPER_API_KEY) {
             const res = await fetch("https://google.serper.dev/search", {
               method: "POST",
               headers: {
@@ -318,16 +338,11 @@ function buildTools(sessionId: string) {
               .slice(0, 5)
               .map((r: any) => `**${r.title}**\n${r.link}\n${r.snippet}`)
               .join("\n\n---\n\n");
-            return {
-              status: "success",
-              source: "serper",
-              query,
-              result: results || "No results",
-            };
+            resultText = results || "No results";
+            source = "serper";
           }
-
           // Fallback: Tavily Search API
-          if (process.env.TAVILY_API_KEY) {
+          else if (process.env.TAVILY_API_KEY) {
             const res = await fetch("https://api.tavily.com/search", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -344,15 +359,45 @@ function buildTools(sessionId: string) {
             const results = (data.results ?? [])
               .map((r: any) => `**${r.title}**\n${r.url}\n${r.content}`)
               .join("\n\n---\n\n");
-            return { status: "success", source: "tavily", query, result: results || "No results" };
+            resultText = results || "No results";
+            source = "tavily";
+          } else {
+            addWorklogEntry(
+              sessionId,
+              "web_search",
+              `Web search failed (No API key): ${query}`,
+              "error",
+              "Add SERPER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to .env.local"
+            );
+            return {
+              status: "no_api_key",
+              query,
+              result: "Add SERPER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to .env.local for web search",
+            };
           }
 
+          addWorklogEntry(
+            sessionId,
+            "web_search",
+            `Web search: ${query}`,
+            "success",
+            `Source: ${source}\n\n${resultText.slice(0, 2000)}`
+          );
+
           return {
-            status: "no_api_key",
+            status: "success",
+            source,
             query,
-            result: "Add SERPER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to .env.local for web search",
+            result: resultText,
           };
         } catch (err: any) {
+          addWorklogEntry(
+            sessionId,
+            "web_search",
+            `Web search failed: ${query}`,
+            "error",
+            err.message
+          );
           return { status: "error", query, error: err.message };
         }
       },
@@ -377,12 +422,41 @@ function buildTools(sessionId: string) {
             `[ -f "${path}" ] && head -n ${max_lines} "${path}" || echo "FILE NOT FOUND: ${path}"`,
             { timeoutMs: TOOL_TIMEOUTS.read_file }
           );
+
+          const content = exec.stdout || "(empty file)";
+
+          if (!content.startsWith("FILE NOT FOUND:")) {
+            trackFileChange(sessionId, path, "read", content);
+            trackIDEFile(sessionId, path, content);
+            addWorklogEntry(
+              sessionId,
+              "file_read",
+              `Read file: ${path}`,
+              "success",
+              `Content preview:\n${content.slice(0, 1000)}`
+            );
+          } else {
+            addWorklogEntry(
+              sessionId,
+              "file_read",
+              `Read file failed (not found): ${path}`,
+              "error"
+            );
+          }
+
           return {
             status: "success",
             path,
-            content: exec.stdout || "(empty file)",
+            content,
           };
         } catch (err: any) {
+          addWorklogEntry(
+            sessionId,
+            "file_read",
+            `Read file failed: ${path}`,
+            "error",
+            err.message
+          );
           return { status: "error", path, error: err.message };
         }
       },
@@ -409,8 +483,26 @@ function buildTools(sessionId: string) {
             `mkdir -p "$(dirname "${path}")" && echo "${encoded}" | base64 -d > "${path}"`,
             { timeoutMs: TOOL_TIMEOUTS.write_file }
           );
+
+          trackFileChange(sessionId, path, "write", content, content.length);
+          trackIDEFile(sessionId, path, content);
+          addWorklogEntry(
+            sessionId,
+            "file_write",
+            `Wrote file: ${path}`,
+            "success",
+            `Written ${content.length} bytes.\n\nContent preview:\n${content.slice(0, 1000)}`
+          );
+
           return { status: "success", path, bytes: content.length };
         } catch (err: any) {
+          addWorklogEntry(
+            sessionId,
+            "file_write",
+            `Write file failed: ${path}`,
+            "error",
+            err.message
+          );
           return { status: "error", path, error: err.message };
         }
       },
@@ -446,13 +538,31 @@ function buildTools(sessionId: string) {
           const exec = await sandbox.commands.run(cmd, {
             timeoutMs: TOOL_TIMEOUTS.install_tool,
           });
+
+          const output = exec.stdout?.slice(-500) || exec.stderr?.slice(-500) || "Installed";
+
+          addWorklogEntry(
+            sessionId,
+            "tool_install",
+            `Installed tool: ${tool_name} via ${method}`,
+            exec.exitCode === 0 ? "success" : "error",
+            `Source: ${src}\nExit Code: ${exec.exitCode}\nOutput:\n${output}`
+          );
+
           return {
             status: "success",
             tool_name,
             method,
-            output: exec.stdout?.slice(-500) || exec.stderr?.slice(-500) || "Installed",
+            output,
           };
         } catch (err: any) {
+          addWorklogEntry(
+            sessionId,
+            "tool_install",
+            `Failed to install tool: ${tool_name} via ${method}`,
+            "error",
+            err.message
+          );
           return { status: "error", tool_name, error: err.message };
         }
       },
@@ -543,8 +653,30 @@ export async function POST(req: Request) {
 
     const cleanMessages = sanitizeMessages(messages);
 
+    // Ensure we load any dynamic overrides from runtimeSettings
+    const dynamicModelChain = [
+      {
+        label: "Primary (Dynamic Model)",
+        baseURL: runtimeSettings.llmBaseUrl || process.env.LLM_BASE_URL || "https://integrate.api.nvidia.com/v1",
+        apiKey: runtimeSettings.llmApiKey || process.env.LLM_API_KEY || "",
+        model: runtimeSettings.llmModel || process.env.LLM_MODEL || "meta/llama-3.1-405b-instruct",
+      },
+      {
+        label: "Fallback (OpenRouter / Sonnet)",
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY ?? "",
+        model: "anthropic/claude-sonnet-4-6",
+      },
+      {
+        label: "Emergency (OpenRouter / Llama 70B)",
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY ?? "",
+        model: "meta-llama/llama-3.1-70b-instruct",
+      },
+    ];
+
     // Verify that at least one API key is present
-    const hasKeys = MODEL_CHAIN.some(m => !!m.apiKey);
+    const hasKeys = dynamicModelChain.some(m => !!m.apiKey);
     if (!hasKeys) {
       return Response.json(
         {
@@ -558,7 +690,7 @@ export async function POST(req: Request) {
     // ── Model Fallback Chain ──────────────────────────────────────────────────
     let lastError: Error | null = null;
 
-    for (const modelConfig of MODEL_CHAIN) {
+    for (const modelConfig of dynamicModelChain) {
       // Skip fallback models if their API key isn't configured
       if (!modelConfig.apiKey) continue;
 

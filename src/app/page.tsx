@@ -10,7 +10,7 @@ import { MonitorPanel } from "@/components/MonitorPanel";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentApprovalGate } from "@/components/AgentApprovalGate";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { DefaultChatTransport } from "ai";
 import type { FlowMode } from "@/lib/agent/flow";
 
@@ -201,6 +201,18 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [detectedMode, setDetectedMode] = useState<FlowMode>("standard");
   const [showMonitor, setShowMonitor] = useState(false);
+
+  // Load session from URL parameters if present
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const sid = params.get("sessionId");
+      if (sid) {
+        currentSessionId = sid;
+        setShowMonitor(true);
+      }
+    }
+  }, []);
 
   const [transport] = useState(
     () =>
