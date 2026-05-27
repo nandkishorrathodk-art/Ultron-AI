@@ -49,3 +49,34 @@ export const submitDecision = mutation({
     });
   },
 });
+
+export const getApproval = query({
+  args: { id: v.id("hitl_approvals") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+export const submitDecisionForSession = mutation({
+  args: {
+    sessionId: v.id("pentest_sessions"),
+    decision: v.union(v.literal("approved"), v.literal("denied"), v.literal("timeout")),
+  },
+  handler: async (ctx, args) => {
+    const pending = await ctx.db
+      .query("hitl_approvals")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+      .filter((q) => q.eq(q.field("decision"), "pending"))
+      .first();
+
+    if (pending) {
+      await ctx.db.patch(pending._id, {
+        decision: args.decision,
+        decidedAt: Date.now(),
+      });
+      return pending._id;
+    }
+    return null;
+  },
+});
+

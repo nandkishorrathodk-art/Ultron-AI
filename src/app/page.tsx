@@ -300,6 +300,17 @@ export default function Home() {
   const handleDeny = useCallback(
     (taskId: string) => {
       console.log("Denied task:", taskId);
+
+      fetch("/api/execute-approved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: "",
+          sessionId: currentSessionId ?? "",
+          denied: true,
+        }),
+      }).catch((err) => console.error("[Ultron UI] Failed to deny task in Convex:", err));
+
       addToolOutput({
         tool: "execute_bash",
         toolCallId: taskId,

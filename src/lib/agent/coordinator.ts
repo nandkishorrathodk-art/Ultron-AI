@@ -182,16 +182,13 @@ export class PentestCoordinator {
               while (Date.now() < timeoutAt && !decisionMade) {
                 await new Promise((resolve) => setTimeout(resolve, 5000));
                 
-                const pending = await convexClient.query(api.hitl.getPending, {
-                  sessionId: this.sessionId as any,
+                const approval = await convexClient.query(api.hitl.getApproval, {
+                  id: approvalId,
                 });
 
-                // If no pending, query all approvals to check if this specific request was resolved
-                if (!pending || pending._id !== approvalId) {
-                  // Retrieve the record to check the state
-                  // Since there isn't a direct getApproval, we check if it is missing or has decision
+                if (approval && approval.decision !== "pending") {
                   decisionMade = true;
-                  decisionType = "approved"; // Assume approved if no longer pending, or query session history
+                  decisionType = approval.decision;
                 }
               }
 
