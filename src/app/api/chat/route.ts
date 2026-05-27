@@ -15,6 +15,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, tool } from "ai";
 import { z } from "zod";
 import { getOrCreateSandbox, killSandbox, addSandboxLog } from "@/lib/sandbox-manager";
+import { PentestCoordinator } from "../../../lib/agent/coordinator";
 
 export const maxDuration = 60;
 
@@ -463,7 +464,7 @@ function buildTools(sessionId: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, sessionId } = body;
+    const { messages, sessionId, targetScope, mode } = body;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: "Invalid or empty messages" }, { status: 400 });
@@ -471,6 +472,74 @@ export async function POST(req: Request) {
 
     // Use provided sessionId or derive from first message timestamp
     const activeSession = sessionId || `session_${Date.now()}`;
+
+    // === Autonomous Coordinator Interceptor ===
+    const lastMessage = messages[messages.length - 1]?.content || "";
+    const isFirstMessage = messages.length === 1;
+    const isAutonomousRequest =
+      isFirstMessage ||
+      lastMessage.toLowerCase().includes("autonomous") ||
+      lastMessage.toLowerCase().includes("start scan") ||
+      lastMessage.toLowerCase().includes("run pentest");
+
+    if (isAutonomousRequest && targetScope) {
+      console.log(`[Ultron] Starting autonomous coordinator loop for target: ${targetScope}`);
+      const textEncoder = new TextEncoder();
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          const emitMessage = (msg: string) => {
+            const chunk = `0:${JSON.stringify(msg)}\n`;
+            controller.enqueue(textEncoder.encode(chunk));
+          };
+
+          emitMessage(`### 🛡️ Starting XBOW-Class Autonomous Pentest Engine on ${targetScope}...\n`);
+
+          const coordinator = new PentestCoordinator({
+            sessionId: activeSession,
+            targetScope: [targetScope],
+            mode: (mode as any) || "standard",
+            onProgress: (update) => {
+              let msg = "";
+              if (update.type === "status") {
+                msg = `\n\n[Status] ${update.message}`;
+              } else if (update.type === "task_start") {
+                msg = `\n\n### ⏳ Task Started: ${update.taskTitle}\n${update.message}`;
+              } else if (update.type === "task_complete") {
+                msg = `\n\n### ✅ Task Completed: ${update.taskTitle}\n${update.message}`;
+              } else if (update.type === "task_fail") {
+                msg = `\n\n### ❌ Task Failed: ${update.taskTitle}\n${update.message}`;
+              } else if (update.type === "hitl_waiting") {
+                msg = `\n\n### ⚠️ Human Approval Required: ${update.taskTitle}\n${update.message}`;
+              } else if (update.type === "chain_detected") {
+                msg = `\n\n🔗 **Attack Chain Detected!**\n${update.message}`;
+              }
+              if (msg) {
+                emitMessage(msg);
+              }
+            },
+          });
+
+          try {
+            await coordinator.run();
+            emitMessage("\n\n### 🎉 Autonomous Pentest Assessment Completed! Final findings have been saved to memory and Neo4j KG.");
+          } catch (err: any) {
+            emitMessage(`\n\n### ❌ Fatal Loop Error: ${err.message}`);
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "X-Session-Id": activeSession,
+        },
+      });
+    }
 
     const cleanMessages = sanitizeMessages(messages);
 
