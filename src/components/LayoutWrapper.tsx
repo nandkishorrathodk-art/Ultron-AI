@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === "/login";
+  const isAuthPage = pathname === "/login" || pathname === "/landing";
 
   if (isAuthPage) {
     return (
