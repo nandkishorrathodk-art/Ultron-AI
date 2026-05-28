@@ -328,7 +328,7 @@ export default function Home() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="w-6 h-6 text-primary" />
-            Ultron v3.0 — ULTRON-X
+            Ultron v2.0 — ULTRON-X
           </h1>
           <p className="text-sm text-muted-foreground">
             AI-powered autonomous penetration testing with Flow Engine + 13 specialist agents.
@@ -353,7 +353,7 @@ export default function Home() {
                   <div className="bg-muted/50 border p-5 rounded-lg rounded-tl-none flex-1 space-y-6">
                     <div>
                       <h3 className="font-semibold text-lg text-foreground mb-1">
-                        Welcome to Ultron v3.0 — ULTRON-X
+                        Welcome to Ultron v2.0 — ULTRON-X
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         Just describe what you want to do — Ultron will automatically detect the
@@ -524,7 +524,7 @@ export default function Home() {
               </Button>
             </form>
             <div className="text-center mt-2 text-xs text-muted-foreground">
-              Ultron v3.0 can make mistakes. Always verify findings before reporting.
+              Ultron v2.0 can make mistakes. Always verify findings before reporting.
             </div>
           </div>
         </div>

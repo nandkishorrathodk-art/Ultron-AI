@@ -358,7 +358,7 @@ export default function LandingPage() {
               </div>
               <div className="terminal-output" style={{ marginTop: 12 }}>
                 <div style={{ color: "var(--ultron-accent)" }}>
-                  [●] Ultron v3.0 — Autonomous Penetration Testing Engine
+                  [●] Ultron v2.0 — Autonomous Penetration Testing Engine
                 </div>
                 <div style={{ marginTop: 8 }}>
                   [→] Phase 1: Reconnaissance ........................ <span style={{ color: "#27c93f" }}>COMPLETE</span>

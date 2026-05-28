@@ -21,8 +21,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
-  TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
+const TooltipTrigger = TooltipPrimitive.Trigger
 import { PanelLeftIcon } from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
@@ -118,7 +119,7 @@ function SidebarProvider({
       state,
       open,
       setOpen,
-      isMobile,
+      isMobile: !!isMobile,
       openMobile,
       setOpenMobile,
       toggleSidebar,

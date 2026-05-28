@@ -1,5 +1,5 @@
 /**
- * ULTRON v3.0 — Preference-Based Chain-of-Thought Output Filter
+ * ULTRON v2.0 — Preference-Based Chain-of-Thought Output Filter
  * Based on PTFusion 2026 research.
  *
  * Strips redundant/noisy tool output BEFORE passing to LLM.

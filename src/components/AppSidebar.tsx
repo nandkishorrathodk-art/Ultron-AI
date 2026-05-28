@@ -131,7 +131,7 @@ export function AppSidebar() {
       </SidebarContent>
       
       <SidebarFooter className="p-4 border-t text-sm text-muted-foreground text-center">
-        Ultron v3.0
+        Ultron v2.0
       </SidebarFooter>
     </Sidebar>
   );

@@ -5,7 +5,7 @@ const SESSION_COOKIE = "ultron_session";
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days
 
 function getSecret() {
-  const secret = process.env.SESSION_SECRET || process.env.ULTRON_API_KEY || "ultron-v3-default-secret-change-me";
+  const secret = process.env.SESSION_SECRET || process.env.ULTRON_API_KEY || "ultron-v2-default-secret-change-me";
   return new TextEncoder().encode(secret);
 }
 

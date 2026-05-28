@@ -1,0 +1,1533 @@
+mod platform;
+mod pty;
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU16, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tauri::Manager;
+use tauri_plugin_updater::UpdaterExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60); // 24 hours
+const DESKTOP_AUTH_STATE_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_PENDING_DESKTOP_AUTH_STATES: usize = 16;
+
+/// Port for the local dev auth callback server (0 = not started)
+static DEV_AUTH_PORT: AtomicU16 = AtomicU16::new(0);
+
+/// Port for the command execution server (0 = not started)
+static CMD_SERVER_PORT: AtomicU16 = AtomicU16::new(0);
+
+/// Session token for authenticating command server requests
+static CMD_SERVER_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+struct PendingDesktopAuthStates(std::sync::Mutex<HashMap<String, SystemTime>>);
+
+fn generate_desktop_auth_state() -> String {
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
+}
+
+fn prune_expired_auth_states(states: &mut HashMap<String, SystemTime>, now: SystemTime) {
+    states.retain(|_, expires_at| *expires_at > now);
+    while states.len() >= MAX_PENDING_DESKTOP_AUTH_STATES {
+        if let Some(oldest_key) = states
+            .iter()
+            .min_by_key(|(_, expires_at)| *expires_at)
+            .map(|(state, _)| state.clone())
+        {
+            states.remove(&oldest_key);
+        } else {
+            break;
+        }
+    }
+}
+
+/// Get the dev auth callback port (0 if not running in dev mode)
+#[tauri::command]
+fn get_dev_auth_port() -> u16 {
+    DEV_AUTH_PORT.load(Ordering::Relaxed)
+}
+
+#[tauri::command]
+fn prepare_desktop_auth_state(
+    pending_states: tauri::State<'_, PendingDesktopAuthStates>,
+) -> Result<String, String> {
+    let state = generate_desktop_auth_state();
+    let now = SystemTime::now();
+    let expires_at = now + DESKTOP_AUTH_STATE_TTL;
+    let mut states = pending_states
+        .0
+        .lock()
+        .map_err(|_| "desktop auth state lock poisoned".to_string())?;
+    prune_expired_auth_states(&mut states, now);
+    states.insert(state.clone(), expires_at);
+    Ok(state)
+}
+
+/// Get the command server port, session token, and OS info
+#[tauri::command]
+fn get_cmd_server_info() -> CmdServerInfo {
+    CmdServerInfo {
+        port: CMD_SERVER_PORT.load(Ordering::Relaxed),
+        token: CMD_SERVER_TOKEN.get().cloned().unwrap_or_default(),
+    }
+}
+
+#[derive(Serialize)]
+struct CmdServerInfo {
+    port: u16,
+    token: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalFileMetadata {
+    path: String,
+    name: String,
+    media_type: String,
+    size: u64,
+    last_modified: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalFileData {
+    path: String,
+    name: String,
+    media_type: String,
+    size: u64,
+    last_modified: u64,
+    base64: String,
+}
+
+fn json_error_body(message: &str) -> String {
+    serde_json::to_string(&serde_json::json!({ "error": message }))
+        .unwrap_or_else(|_| r#"{"error":"serialization failed"}"#.to_string())
+}
+
+fn json_stream_error_line(message: &str) -> String {
+    serde_json::to_string(&serde_json::json!({
+        "type": "error",
+        "message": message,
+    }))
+    .unwrap_or_else(|_| r#"{"type":"error","message":"serialization failed"}"#.to_string())
+}
+
+fn guess_media_type(path: &std::path::Path) -> String {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "svg" => "image/svg+xml",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "md" | "markdown" => "text/markdown",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "html" | "htm" => "text/html",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "ts" | "tsx" => "text/typescript",
+        "css" => "text/css",
+        "xml" => "application/xml",
+        "zip" => "application/zip",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        _ => "application/octet-stream",
+    }
+    .to_string()
+}
+
+#[tauri::command]
+fn get_local_file_metadata(path: String) -> Result<LocalFileMetadata, String> {
+    let path_buf = PathBuf::from(&path);
+    let metadata = fs::metadata(&path_buf).map_err(|e| format!("Metadata error: {}", e))?;
+    if !metadata.is_file() {
+        return Err("Selected path is not a file".to_string());
+    }
+
+    let name = path_buf
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("file")
+        .to_string();
+    let last_modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0);
+
+    Ok(LocalFileMetadata {
+        path,
+        name,
+        media_type: guess_media_type(&path_buf),
+        size: metadata.len(),
+        last_modified,
+    })
+}
+
+#[tauri::command]
+fn read_local_file(path: String) -> Result<LocalFileData, String> {
+    use base64::Engine;
+
+    let metadata = get_local_file_metadata(path.clone())?;
+    let bytes = fs::read(&path).map_err(|e| format!("Read error: {}", e))?;
+
+    Ok(LocalFileData {
+        path: metadata.path,
+        name: metadata.name,
+        media_type: metadata.media_type,
+        size: metadata.size,
+        last_modified: metadata.last_modified,
+        base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+    })
+}
+
+// ── Command Execution Server ──────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ExecRequest {
+    command: String,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    #[serde(default = "default_timeout")]
+    timeout_ms: u64,
+}
+
+fn default_timeout() -> u64 {
+    30000
+}
+
+#[derive(Serialize)]
+struct ExecResponse {
+    stdout: String,
+    stderr: String,
+    exit_code: i32,
+}
+
+async fn wait_with_output_or_kill_on_timeout(
+    mut child: tokio::process::Child,
+    timeout: Duration,
+    timeout_ms: u64,
+) -> Result<std::process::Output, String> {
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture stdout".to_string())?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Failed to capture stderr".to_string())?;
+    let child_pid = child.id();
+    let started_at = tokio::time::Instant::now();
+
+    let stdout_task = tokio::spawn(async move {
+        let mut output = Vec::new();
+        stdout.read_to_end(&mut output).await.map(|_| output)
+    });
+    let stderr_task = tokio::spawn(async move {
+        let mut output = Vec::new();
+        stderr.read_to_end(&mut output).await.map(|_| output)
+    });
+
+    let status = match tokio::time::timeout(timeout, child.wait()).await {
+        Ok(Ok(status)) => status,
+        Ok(Err(e)) => {
+            stdout_task.abort();
+            stderr_task.abort();
+            return Err(format!("Process error: {}", e));
+        }
+        Err(_) => {
+            platform::graceful_kill(&mut child).await;
+            stdout_task.abort();
+            stderr_task.abort();
+            return Err(format!("Command timed out after {}ms", timeout_ms));
+        }
+    };
+
+    let stdout_abort = stdout_task.abort_handle();
+    let stderr_abort = stderr_task.abort_handle();
+    let remaining = timeout
+        .checked_sub(started_at.elapsed())
+        .unwrap_or_else(|| Duration::from_millis(0));
+    let drain_timeout = if remaining.is_zero() {
+        Duration::from_millis(1)
+    } else {
+        remaining
+    };
+
+    let drain_result = tokio::time::timeout(drain_timeout, async {
+        let stdout = match stdout_task.await {
+            Ok(Ok(output)) => output,
+            _ => Vec::new(),
+        };
+        let stderr = match stderr_task.await {
+            Ok(Ok(output)) => output,
+            _ => Vec::new(),
+        };
+        (stdout, stderr)
+    })
+    .await;
+
+    let (stdout, stderr) = match drain_result {
+        Ok(output) => output,
+        Err(_) => {
+            if let Some(pid) = child_pid {
+                platform::cancel_process_tree(pid).await;
+            }
+            stdout_abort.abort();
+            stderr_abort.abort();
+            return Err(format!("Command timed out after {}ms", timeout_ms));
+        }
+    };
+
+    Ok(std::process::Output {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+#[derive(Deserialize)]
+struct FileReadRequest {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct FileWriteRequest {
+    path: String,
+    content: String,
+    #[serde(default)]
+    is_base64: bool,
+}
+
+#[derive(Deserialize)]
+struct FileRemoveRequest {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct FileListRequest {
+    path: String,
+}
+
+/// Start the local command execution HTTP server.
+/// Binds to 127.0.0.1 only and requires a session token for all requests.
+async fn start_cmd_server() {
+    // Generate a random session token
+    let token = uuid::Uuid::new_v4().to_string();
+    let _ = CMD_SERVER_TOKEN.set(token.clone());
+
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(l) => l,
+        Err(e) => {
+            log::error!("Failed to start command server: {}", e);
+            return;
+        }
+    };
+
+    let port = match listener.local_addr() {
+        Ok(addr) => addr.port(),
+        Err(e) => {
+            log::error!("Failed to get command server address: {}", e);
+            return;
+        }
+    };
+    CMD_SERVER_PORT.store(port, Ordering::Relaxed);
+    log::info!("Command server listening on http://127.0.0.1:{}", port);
+
+    loop {
+        let (stream, addr) = match listener.accept().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                log::warn!("Command server accept error: {}", e);
+                continue;
+            }
+        };
+
+        // Only accept connections from localhost
+        if !addr.ip().is_loopback() {
+            log::warn!("Rejected non-loopback connection from {}", addr);
+            continue;
+        }
+
+        let token = token.clone();
+        tokio::spawn(async move {
+            if let Err(e) = handle_cmd_request(stream, &token).await {
+                log::warn!("Command server request error: {}", e);
+            }
+        });
+    }
+}
+
+/// Maximum allowed header size (256KB). Requests with headers exceeding this are rejected.
+const MAX_HEADER_SIZE: usize = 256 * 1024;
+
+/// Maximum allowed body size (10MB). Requests with bodies exceeding this are rejected.
+const MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
+
+/// Parse an HTTP request from the stream, returning (method, path, headers, body)
+async fn parse_http_request(
+    stream: &mut tokio::net::TcpStream,
+) -> Result<(String, String, HashMap<String, String>, String), String> {
+    let mut buf = vec![0u8; 64 * 1024]; // 64KB initial buffer
+    let mut total_read = 0;
+
+    // Read headers first (with size cap to prevent OOM)
+    loop {
+        let n = stream
+            .read(&mut buf[total_read..])
+            .await
+            .map_err(|e| e.to_string())?;
+        if n == 0 {
+            return Err("Connection closed".into());
+        }
+        total_read += n;
+
+        // Check if we have the full headers (search in bytes, not string)
+        if buf[..total_read].windows(4).any(|w| w == b"\r\n\r\n") {
+            break;
+        }
+
+        // Reject oversized headers
+        if total_read > MAX_HEADER_SIZE {
+            return Err("Request headers too large".into());
+        }
+
+        // Grow buffer if needed (up to the cap)
+        if total_read >= buf.len() {
+            let new_size = (buf.len() * 2).min(MAX_HEADER_SIZE + 1);
+            if new_size <= buf.len() {
+                return Err("Request headers too large".into());
+            }
+            buf.resize(new_size, 0);
+        }
+    }
+
+    // Find header/body boundary in raw bytes to avoid string/byte index mismatch
+    let header_end = buf[..total_read]
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .ok_or("No header end")?;
+    let body_start_idx = header_end + 4;
+
+    let header_section = String::from_utf8_lossy(&buf[..header_end]).to_string();
+
+    // Parse request line
+    let first_line = header_section.lines().next().ok_or("Empty request")?;
+    let parts: Vec<&str> = first_line.split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err("Invalid request line".into());
+    }
+    let method = parts[0].to_string();
+    let path = parts[1].to_string();
+
+    // Parse headers
+    let mut headers = HashMap::new();
+    for line in header_section.lines().skip(1) {
+        if let Some((key, value)) = line.split_once(':') {
+            headers.insert(key.trim().to_lowercase(), value.trim().to_string());
+        }
+    }
+
+    // Read body based on content-length
+    let content_length: usize = headers
+        .get("content-length")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+
+    if content_length > MAX_BODY_SIZE {
+        return Err("Request body too large".into());
+    }
+
+    let body_bytes_read = total_read - body_start_idx;
+    let mut body_buf = buf[body_start_idx..total_read].to_vec();
+
+    // Read remaining body if needed
+    if body_bytes_read < content_length {
+        let remaining = content_length - body_bytes_read;
+        let mut remaining_buf = vec![0u8; remaining];
+        let mut read_so_far = 0;
+        while read_so_far < remaining {
+            let n = stream
+                .read(&mut remaining_buf[read_so_far..])
+                .await
+                .map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            read_so_far += n;
+        }
+        body_buf.extend_from_slice(&remaining_buf[..read_so_far]);
+    }
+
+    let body = String::from_utf8_lossy(&body_buf[..content_length.min(body_buf.len())]).to_string();
+
+    Ok((method, path, headers, body))
+}
+
+async fn handle_cmd_request(
+    mut stream: tokio::net::TcpStream,
+    expected_token: &str,
+) -> Result<(), String> {
+    let (method, path, headers, body) = parse_http_request(&mut stream).await?;
+
+    // CORS preflight
+    if method == "OPTIONS" {
+        let response = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, Authorization\r\nAccess-Control-Max-Age: 86400\r\n\r\n";
+        stream
+            .write_all(response.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Validate auth token
+    let auth_header = headers.get("authorization").cloned().unwrap_or_default();
+    let provided_token = auth_header.strip_prefix("Bearer ").unwrap_or("");
+    if provided_token != expected_token {
+        let body = r#"{"error":"unauthorized"}"#;
+        let response = format!(
+            "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(), body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Streaming execute gets special handling (writes directly to stream)
+    if method == "POST" && path == "/execute/stream" {
+        return handle_execute_stream(&body, &mut stream).await;
+    }
+
+    let (route_path, _query_string) = if let Some(idx) = path.find('?') {
+        (&path[..idx], &path[idx + 1..])
+    } else {
+        (path.as_str(), "")
+    };
+
+    let result = match (method.as_str(), route_path) {
+        ("POST", "/execute") => handle_execute(&body).await,
+        ("POST", "/files/read") => handle_file_read(&body).await,
+        ("POST", "/files/write") => handle_file_write(&body).await,
+        ("POST", "/files/remove") => handle_file_remove(&body).await,
+        ("POST", "/files/list") => handle_file_list(&body).await,
+        (_, "/health") => Ok(r#"{"status":"ok"}"#.to_string()),
+        _ => Err("not found".to_string()),
+    };
+
+    let (status, resp_body) = match result {
+        Ok(json) => ("200 OK", json),
+        Err(e) if e == "not found" => ("404 Not Found", json_error_body("not found")),
+        Err(e) => ("500 Internal Server Error", json_error_body(&e)),
+    };
+
+    let response = format!(
+        "HTTP/1.1 {}\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\n\r\n{}",
+        status, resp_body.len(), resp_body
+    );
+    stream
+        .write_all(response.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+async fn handle_execute(body: &str) -> Result<String, String> {
+    let req: ExecRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let mut cmd = platform::build_command(&req.command, req.cwd.as_deref(), req.env.as_ref());
+
+    let child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+
+    let timeout = Duration::from_millis(req.timeout_ms);
+    let output = wait_with_output_or_kill_on_timeout(child, timeout, req.timeout_ms).await?;
+
+    // Truncate output to 1MB to prevent huge responses
+    const MAX_OUTPUT: usize = 1024 * 1024;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout_str = if stdout.len() > MAX_OUTPUT {
+        format!(
+            "{}... [truncated, {} total bytes]",
+            &stdout[..MAX_OUTPUT],
+            stdout.len()
+        )
+    } else {
+        stdout.to_string()
+    };
+    let stderr_str = if stderr.len() > MAX_OUTPUT {
+        format!(
+            "{}... [truncated, {} total bytes]",
+            &stderr[..MAX_OUTPUT],
+            stderr.len()
+        )
+    } else {
+        stderr.to_string()
+    };
+
+    let resp = ExecResponse {
+        stdout: stdout_str,
+        stderr: stderr_str,
+        exit_code: output.status.code().unwrap_or(-1),
+    };
+
+    serde_json::to_string(&resp).map_err(|e| format!("Serialize error: {}", e))
+}
+
+/// Streaming execute: sends NDJSON lines as stdout/stderr arrive, then a final
+/// line with exit_code. Each line is one of:
+///   {"type":"stdout","data":"..."}
+///   {"type":"stderr","data":"..."}
+///   {"type":"exit","exit_code":0}
+///   {"type":"error","message":"..."}
+async fn handle_execute_stream(
+    body: &str,
+    stream: &mut tokio::net::TcpStream,
+) -> Result<(), String> {
+    let req: ExecRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let mut cmd = platform::build_command(&req.command, req.cwd.as_deref(), req.env.as_ref());
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            let err_body = json_error_body(&format!("Failed to spawn: {}", e));
+            let resp = format!(
+                "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: {}\r\n\r\n{}",
+                err_body.len(), err_body
+            );
+            let _ = stream.write_all(resp.as_bytes()).await;
+            return Ok(());
+        }
+    };
+
+    // Send chunked response headers
+    let headers = "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nAccess-Control-Allow-Origin: *\r\nTransfer-Encoding: chunked\r\n\r\n";
+    stream
+        .write_all(headers.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let timeout = Duration::from_millis(req.timeout_ms);
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+
+    let result = tokio::time::timeout(timeout, async {
+        let mut stdout_buf = [0u8; 4096];
+        let mut stderr_buf = [0u8; 4096];
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+
+        loop {
+            if stdout_done && stderr_done {
+                break;
+            }
+
+            tokio::select! {
+                result = stdout.read(&mut stdout_buf), if !stdout_done => {
+                    match result {
+                        Ok(0) => stdout_done = true,
+                        Ok(n) => {
+                            let text = String::from_utf8_lossy(&stdout_buf[..n]);
+                            let escaped = serde_json::to_string(&text).unwrap_or_default();
+                            let line = format!(r#"{{"type":"stdout","data":{}}}"#, escaped);
+                            write_chunk(stream, &line).await;
+                        }
+                        Err(_) => stdout_done = true,
+                    }
+                }
+                result = stderr.read(&mut stderr_buf), if !stderr_done => {
+                    match result {
+                        Ok(0) => stderr_done = true,
+                        Ok(n) => {
+                            let text = String::from_utf8_lossy(&stderr_buf[..n]);
+                            let escaped = serde_json::to_string(&text).unwrap_or_default();
+                            let line = format!(r#"{{"type":"stderr","data":{}}}"#, escaped);
+                            write_chunk(stream, &line).await;
+                        }
+                        Err(_) => stderr_done = true,
+                    }
+                }
+            }
+        }
+
+        // Wait for process to exit
+        child.wait().await
+    })
+    .await;
+
+    match result {
+        Ok(Ok(status)) => {
+            let line = format!(
+                r#"{{"type":"exit","exit_code":{}}}"#,
+                status.code().unwrap_or(-1)
+            );
+            write_chunk(stream, &line).await;
+        }
+        Ok(Err(e)) => {
+            let line = json_stream_error_line(&format!("Process error: {}", e));
+            write_chunk(stream, &line).await;
+        }
+        Err(_) => {
+            // Timeout — gracefully kill the process
+            platform::graceful_kill(&mut child).await;
+            let line =
+                json_stream_error_line(&format!("Command timed out after {}ms", req.timeout_ms));
+            write_chunk(stream, &line).await;
+        }
+    }
+
+    // Terminal chunk
+    write_chunk(stream, "").await;
+    Ok(())
+}
+
+/// Write a single HTTP chunked-transfer chunk
+async fn write_chunk(stream: &mut tokio::net::TcpStream, data: &str) {
+    let payload = if data.is_empty() {
+        "0\r\n\r\n".to_string()
+    } else {
+        let line = format!("{}\n", data);
+        format!("{:x}\r\n{}\r\n", line.len(), line)
+    };
+    let _ = stream.write_all(payload.as_bytes()).await;
+    let _ = stream.flush().await;
+}
+
+async fn handle_file_read(body: &str) -> Result<String, String> {
+    let req: FileReadRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+    let content = tokio::fs::read_to_string(&req.path)
+        .await
+        .map_err(|e| format!("Read error: {}", e))?;
+    serde_json::to_string(&serde_json::json!({ "content": content })).map_err(|e| e.to_string())
+}
+
+async fn handle_file_write(body: &str) -> Result<String, String> {
+    let req: FileWriteRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    // Ensure parent directory exists
+    if let Some(parent) = std::path::Path::new(&req.path).parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Mkdir error: {}", e))?;
+    }
+
+    if req.is_base64 {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&req.content)
+            .map_err(|e| format!("Base64 decode error: {}", e))?;
+        tokio::fs::write(&req.path, bytes)
+            .await
+            .map_err(|e| format!("Write error: {}", e))?;
+    } else {
+        tokio::fs::write(&req.path, &req.content)
+            .await
+            .map_err(|e| format!("Write error: {}", e))?;
+    }
+
+    Ok(r#"{"ok":true}"#.to_string())
+}
+
+async fn handle_file_remove(body: &str) -> Result<String, String> {
+    let req: FileRemoveRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+    let path = std::path::Path::new(&req.path);
+
+    if path.is_dir() {
+        tokio::fs::remove_dir_all(path)
+            .await
+            .map_err(|e| format!("Remove error: {}", e))?;
+    } else {
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|e| format!("Remove error: {}", e))?;
+    }
+
+    Ok(r#"{"ok":true}"#.to_string())
+}
+
+async fn handle_file_list(body: &str) -> Result<String, String> {
+    let req: FileListRequest =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {}", e))?;
+    let mut entries = Vec::new();
+    let mut dir = tokio::fs::read_dir(&req.path)
+        .await
+        .map_err(|e| format!("ReadDir error: {}", e))?;
+
+    while let Some(entry) = dir
+        .next_entry()
+        .await
+        .map_err(|e| format!("Entry error: {}", e))?
+    {
+        let name = entry.file_name().to_string_lossy().to_string();
+        entries.push(serde_json::json!({ "name": name }));
+    }
+
+    serde_json::to_string(&entries).map_err(|e| e.to_string())
+}
+
+// ── Tauri IPC Commands ────────────────────────────────────────────────
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+enum StreamEvent {
+    Stdout {
+        data: String,
+    },
+    Stderr {
+        data: String,
+    },
+    Exit {
+        // Explicit rename needed: Tauri 2's Channel<T> does not apply
+        // rename_all to fields inside internally-tagged enum variants.
+        #[serde(rename = "exitCode")]
+        exit_code: i32,
+    },
+    Error {
+        message: String,
+    },
+}
+
+type StreamCommandState = std::sync::Arc<std::sync::Mutex<HashMap<String, u32>>>;
+
+#[tauri::command]
+async fn execute_command(
+    command: String,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    timeout_ms: Option<u64>,
+) -> Result<ExecResponse, String> {
+    let mut cmd = platform::build_command(&command, cwd.as_deref(), env.as_ref());
+    let child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+    let timeout = Duration::from_millis(timeout_ms.unwrap_or(30000));
+    let timeout_ms = timeout_ms.unwrap_or(30000);
+    let output = wait_with_output_or_kill_on_timeout(child, timeout, timeout_ms).await?;
+    const MAX_OUTPUT: usize = 1024 * 1024;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout_str = if stdout.len() > MAX_OUTPUT {
+        format!(
+            "{}... [truncated, {} total bytes]",
+            &stdout[..MAX_OUTPUT],
+            stdout.len()
+        )
+    } else {
+        stdout.to_string()
+    };
+    let stderr_str = if stderr.len() > MAX_OUTPUT {
+        format!(
+            "{}... [truncated, {} total bytes]",
+            &stderr[..MAX_OUTPUT],
+            stderr.len()
+        )
+    } else {
+        stderr.to_string()
+    };
+    Ok(ExecResponse {
+        stdout: stdout_str,
+        stderr: stderr_str,
+        exit_code: output.status.code().unwrap_or(-1),
+    })
+}
+
+#[tauri::command]
+async fn execute_stream_command(
+    state: tauri::State<'_, StreamCommandState>,
+    command_id: String,
+    command: String,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    timeout_ms: Option<u64>,
+    on_event: tauri::ipc::Channel<StreamEvent>,
+) -> Result<(), String> {
+    let mut cmd = platform::build_command(&command, cwd.as_deref(), env.as_ref());
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+    if let Some(pid) = child.id() {
+        if let Ok(mut commands) = state.lock() {
+            commands.insert(command_id.clone(), pid);
+        }
+    }
+    let timeout = Duration::from_millis(timeout_ms.unwrap_or(30000));
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+
+    let result = tokio::time::timeout(timeout, async {
+        let mut stdout_buf = [0u8; 4096];
+        let mut stderr_buf = [0u8; 4096];
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+
+        loop {
+            if stdout_done && stderr_done {
+                break;
+            }
+            tokio::select! {
+                result = stdout.read(&mut stdout_buf), if !stdout_done => {
+                    match result {
+                        Ok(0) => stdout_done = true,
+                        Ok(n) => {
+                            let data = String::from_utf8_lossy(&stdout_buf[..n]).to_string();
+                            let _ = on_event.send(StreamEvent::Stdout { data });
+                        }
+                        Err(_) => stdout_done = true,
+                    }
+                }
+                result = stderr.read(&mut stderr_buf), if !stderr_done => {
+                    match result {
+                        Ok(0) => stderr_done = true,
+                        Ok(n) => {
+                            let data = String::from_utf8_lossy(&stderr_buf[..n]).to_string();
+                            let _ = on_event.send(StreamEvent::Stderr { data });
+                        }
+                        Err(_) => stderr_done = true,
+                    }
+                }
+            }
+        }
+        child.wait().await
+    })
+    .await;
+
+    match result {
+        Ok(Ok(status)) => {
+            let _ = on_event.send(StreamEvent::Exit {
+                exit_code: status.code().unwrap_or(-1),
+            });
+        }
+        Ok(Err(e)) => {
+            let _ = on_event.send(StreamEvent::Error {
+                message: format!("Process error: {}", e),
+            });
+        }
+        Err(_) => {
+            platform::graceful_kill(&mut child).await;
+            let _ = on_event.send(StreamEvent::Error {
+                message: format!("Command timed out after {}ms", timeout_ms.unwrap_or(30000)),
+            });
+        }
+    }
+    if let Ok(mut commands) = state.lock() {
+        commands.remove(&command_id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn cancel_stream_command(
+    state: tauri::State<'_, StreamCommandState>,
+    command_id: String,
+) -> Result<bool, String> {
+    let pid = state
+        .lock()
+        .map_err(|_| "stream command state lock poisoned".to_string())?
+        .get(&command_id)
+        .copied();
+
+    if let Some(pid) = pid {
+        platform::cancel_process_tree(pid).await;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Start a local HTTP server for dev mode auth callbacks.
+/// This replaces deep links which don't work in `tauri dev` on macOS.
+/// Only compiled in debug builds — matches the cfg-gated call site at the
+/// bottom of `run()`. Without this gate, release builds error out with
+/// `dead_code` under `actions-rust-lang/setup-rust-toolchain@v1`'s
+/// `RUSTFLAGS=-D warnings`.
+#[cfg(debug_assertions)]
+async fn start_dev_auth_server(app_handle: tauri::AppHandle) {
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(l) => l,
+        Err(e) => {
+            log::error!("Failed to start dev auth server: {}", e);
+            return;
+        }
+    };
+
+    let port = match listener.local_addr() {
+        Ok(addr) => addr.port(),
+        Err(e) => {
+            log::error!("Failed to get dev auth server address: {}", e);
+            return;
+        }
+    };
+    DEV_AUTH_PORT.store(port, Ordering::Relaxed);
+    log::info!(
+        "Dev auth callback server listening on http://localhost:{}",
+        port
+    );
+
+    loop {
+        let (mut stream, _) = match listener.accept().await {
+            Ok(conn) => conn,
+            Err(e) => {
+                log::warn!("Dev auth server accept error: {}", e);
+                continue;
+            }
+        };
+
+        let handle = app_handle.clone();
+        tokio::spawn(async move {
+            let mut buf = vec![0u8; 4096];
+            let n = match stream.read(&mut buf).await {
+                Ok(n) => n,
+                Err(_) => return,
+            };
+
+            let request = String::from_utf8_lossy(&buf[..n]);
+
+            // Parse the request line: GET /auth-callback?token=...&origin=... HTTP/1.1
+            let path = match request.lines().next() {
+                Some(line) => {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 && parts[0] == "GET" {
+                        parts[1].to_string()
+                    } else {
+                        String::new()
+                    }
+                }
+                None => String::new(),
+            };
+
+            if !path.starts_with("/auth-callback") {
+                let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response.as_bytes()).await;
+                return;
+            }
+
+            // Parse query params from the path
+            let fake_url = format!("http://localhost{}", path);
+            let parsed = match url::Url::parse(&fake_url) {
+                Ok(u) => u,
+                Err(_) => {
+                    let response = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                    let _ = stream.write_all(response.as_bytes()).await;
+                    return;
+                }
+            };
+
+            let token = parsed
+                .query_pairs()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v.to_string());
+            let origin = parsed
+                .query_pairs()
+                .find(|(k, _)| k == "origin")
+                .map(|(_, v)| v.to_string());
+            let desktop_state = parsed
+                .query_pairs()
+                .find(|(k, _)| k == "desktop_state")
+                .map(|(_, v)| v.to_string());
+
+            match (token, desktop_state) {
+                (Some(ref t), Some(ref state))
+                    if is_valid_token_format(t)
+                        && consume_pending_desktop_auth_state(&handle, state) =>
+                {
+                    let origin = origin
+                        .filter(|o| validate_origin(o))
+                        .unwrap_or_else(|| "http://localhost:3000".to_string());
+
+                    let encoded_token: String =
+                        url::form_urlencoded::byte_serialize(t.as_bytes()).collect();
+                    let encoded_state: String =
+                        url::form_urlencoded::byte_serialize(state.as_bytes()).collect();
+                    let callback_url = format!(
+                        "{}/desktop-callback?token={}&desktop_state={}",
+                        origin, encoded_token, encoded_state
+                    );
+
+                    log::info!(
+                        "Dev auth: navigating to callback (token: {}...)",
+                        &t[..8.min(t.len())]
+                    );
+
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.set_focus();
+                        if let Ok(parsed_url) = callback_url.parse() {
+                            let _ = window.navigate(parsed_url);
+                        }
+                    }
+
+                    // Return a page that tells the user to close the tab
+                    let body = r#"<!DOCTYPE html><html><head><meta charset="utf-8"><title>Auth Complete</title><style>body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0a;color:#fff}h1{font-size:1.5rem}</style></head><body><h1>Authentication complete. You can close this tab.</h1><script>window.close()</script></body></html>"#;
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nCache-Control: no-store\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+                _ => {
+                    log::warn!("Dev auth: invalid or missing token/auth state");
+                    let response = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            }
+        });
+    }
+}
+
+fn get_last_update_check_file(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .ok()
+        .map(|dir| dir.join("last_update_check"))
+}
+
+fn should_check_for_updates(app: &tauri::AppHandle) -> bool {
+    let Some(file_path) = get_last_update_check_file(app) else {
+        return true;
+    };
+
+    match fs::read_to_string(&file_path) {
+        Ok(content) => {
+            let last_check: u64 = content.trim().parse().unwrap_or(0);
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            now.saturating_sub(last_check) >= UPDATE_CHECK_INTERVAL.as_secs()
+        }
+        Err(_) => true,
+    }
+}
+
+fn save_update_check_timestamp(app: &tauri::AppHandle) {
+    let Some(file_path) = get_last_update_check_file(app) else {
+        return;
+    };
+
+    if let Some(parent) = file_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    if let Err(e) = fs::write(&file_path, now.to_string()) {
+        log::warn!("Failed to save update check timestamp: {}", e);
+    }
+}
+
+fn get_allowed_hosts() -> Vec<String> {
+    match std::env::var("ULTRON_ALLOWED_HOSTS") {
+        Ok(hosts) => hosts.split(',').map(|s| s.trim().to_string()).collect(),
+        Err(_) => vec!["ultron-ai.co".to_string(), "localhost".to_string()],
+    }
+}
+
+fn is_valid_token_format(token: &str) -> bool {
+    token.len() == 64 && token.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn validate_origin(origin: &str) -> bool {
+    match url::Url::parse(origin) {
+        Ok(parsed) => {
+            let host = parsed.host_str().unwrap_or("");
+            let scheme = parsed.scheme();
+            let allowed_hosts = get_allowed_hosts();
+            let is_allowed_host = allowed_hosts.iter().any(|allowed| host == allowed);
+            let is_valid_scheme = scheme == "https" || (host == "localhost" && scheme == "http");
+            is_allowed_host && is_valid_scheme
+        }
+        Err(_) => false,
+    }
+}
+
+fn consume_pending_desktop_auth_state(app: &tauri::AppHandle, desktop_state: &str) -> bool {
+    if !is_valid_token_format(desktop_state) {
+        return false;
+    }
+
+    let Some(pending_states) = app.try_state::<PendingDesktopAuthStates>() else {
+        log::error!("Desktop auth state store is unavailable");
+        return false;
+    };
+
+    let now = SystemTime::now();
+    let mut states = match pending_states.0.lock() {
+        Ok(states) => states,
+        Err(_) => {
+            log::error!("Desktop auth state lock poisoned");
+            return false;
+        }
+    };
+
+    prune_expired_auth_states(&mut states, now);
+    states
+        .remove(desktop_state)
+        .map(|expires_at| expires_at > now)
+        .unwrap_or(false)
+}
+
+fn handle_auth_deep_link(app: &tauri::AppHandle, url: &url::Url) {
+    if url.scheme() != "ultron" {
+        return;
+    }
+
+    if url.host_str() == Some("auth") || url.path() == "/auth" || url.path() == "auth" {
+        match url
+            .query_pairs()
+            .find(|(k, _)| k == "token")
+            .map(|(_, v)| v)
+        {
+            Some(token) => {
+                if !is_valid_token_format(&token) {
+                    log::error!("Invalid token format in deep link");
+                    return;
+                }
+
+                let desktop_state = match url
+                    .query_pairs()
+                    .find(|(k, _)| k == "desktop_state")
+                    .map(|(_, v)| v.to_string())
+                {
+                    Some(state) if consume_pending_desktop_auth_state(app, &state) => state,
+                    _ => {
+                        log::error!("Auth deep link missing valid desktop auth state");
+                        return;
+                    }
+                };
+
+                if let Some(window) = app.get_webview_window("main") {
+                    // Get and validate origin from deep link query params
+                    let origin = url
+                        .query_pairs()
+                        .find(|(k, _)| k == "origin")
+                        .map(|(_, v)| v.to_string())
+                        .filter(|o| validate_origin(o))
+                        .unwrap_or_else(|| {
+                            log::warn!("Deep link has missing or invalid origin, using production");
+                            "https://ultron-ai.co".to_string()
+                        });
+
+                    let encoded_token: String =
+                        url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
+                    let encoded_state: String =
+                        url::form_urlencoded::byte_serialize(desktop_state.as_bytes()).collect();
+                    let callback_url = format!(
+                        "{}/desktop-callback?token={}&desktop_state={}",
+                        origin, encoded_token, encoded_state
+                    );
+                    log::info!(
+                        "Navigating to desktop callback (token: {}...)",
+                        &token[..8.min(token.len())]
+                    );
+
+                    match callback_url.parse() {
+                        Ok(parsed_url) => {
+                            if let Err(e) = window.navigate(parsed_url) {
+                                log::error!("Failed to navigate to callback URL: {}", e);
+                                // Try to navigate to error page
+                                let error_url = format!("{}/login?error=navigation_failed", origin);
+                                if let Ok(error_parsed) = error_url.parse() {
+                                    let _ = window.navigate(error_parsed);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Invalid callback URL format: {}", e);
+                        }
+                    }
+                }
+            }
+            None => {
+                if let Some((_, error)) = url.query_pairs().find(|(k, _)| k == "error") {
+                    log::error!("Auth deep link received with error: {}", error);
+                } else {
+                    log::warn!("Auth deep link received without token: {:?}", url);
+                }
+            }
+        }
+    }
+}
+
+async fn check_for_updates(app: tauri::AppHandle, silent: bool) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(e) => {
+            if silent {
+                log::warn!("Auto-update check failed to get updater: {}", e);
+            } else {
+                log::error!("Failed to get updater: {}", e);
+                let _ = app
+                    .dialog()
+                    .message(format!("Failed to check for updates: {}", e))
+                    .kind(MessageDialogKind::Error)
+                    .title("Update Error")
+                    .blocking_show();
+            }
+            return;
+        }
+    };
+
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let version = update.version.clone();
+            log::info!("Update available: {}", version);
+
+            let should_update = app
+                .dialog()
+                .message(format!(
+                    "A new version ({}) is available. Would you like to update now?",
+                    version
+                ))
+                .title("Update Available")
+                .kind(MessageDialogKind::Info)
+                .buttons(MessageDialogButtons::OkCancel)
+                .blocking_show();
+
+            if should_update {
+                log::info!("User accepted update to version {}", version);
+                if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
+                    log::error!("Failed to install update: {}", e);
+                    let _ = app
+                        .dialog()
+                        .message(format!("Failed to install update: {}", e))
+                        .kind(MessageDialogKind::Error)
+                        .title("Update Error")
+                        .blocking_show();
+                } else {
+                    log::info!("Update installed successfully");
+                    let restart_now = app
+                        .dialog()
+                        .message("Update installed successfully. Restart now to apply changes?")
+                        .kind(MessageDialogKind::Info)
+                        .title("Update Complete")
+                        .buttons(MessageDialogButtons::OkCancelCustom(
+                            "Restart Now".into(),
+                            "Later".into(),
+                        ))
+                        .blocking_show();
+                    if restart_now {
+                        app.restart();
+                    }
+                }
+            }
+        }
+        Ok(None) => {
+            if silent {
+                log::info!("No updates available (auto-check)");
+            } else {
+                log::info!("No updates available");
+                let _ = app
+                    .dialog()
+                    .message("You're running the latest version.")
+                    .kind(MessageDialogKind::Info)
+                    .title("No Updates")
+                    .blocking_show();
+            }
+        }
+        Err(e) => {
+            if silent {
+                log::warn!("Auto-update check failed: {}", e);
+            } else {
+                log::error!("Failed to check for updates: {}", e);
+                let _ = app
+                    .dialog()
+                    .message(format!("Failed to check for updates: {}", e))
+                    .kind(MessageDialogKind::Error)
+                    .title("Update Error")
+                    .blocking_show();
+            }
+        }
+    }
+}
+
+// ── PTY Commands ─────────────────────────────────────────────────────
+
+type PtyState = std::sync::Arc<std::sync::Mutex<pty::PtyManager>>;
+
+#[tauri::command]
+async fn execute_pty_create(
+    state: tauri::State<'_, PtyState>,
+    session_id: String,
+    command: String,
+    cols: u16,
+    rows: u16,
+    cwd: Option<String>,
+    env: Option<HashMap<String, String>>,
+    on_data: tauri::ipc::Channel<String>,
+) -> Result<pty::PtyCreateResult, String> {
+    let mut manager = state.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+    manager.create(session_id, command, cols, rows, cwd, env, on_data)
+}
+
+#[tauri::command]
+async fn execute_pty_input(
+    state: tauri::State<'_, PtyState>,
+    session_id: String,
+    data: String,
+) -> Result<(), String> {
+    let mut manager = state.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+    manager.send_input(&session_id, &data)
+}
+
+#[tauri::command]
+async fn execute_pty_resize(
+    state: tauri::State<'_, PtyState>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    let mut manager = state.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+    manager.resize(&session_id, cols, rows)
+}
+
+#[tauri::command]
+async fn execute_pty_kill(
+    state: tauri::State<'_, PtyState>,
+    session_id: String,
+) -> Result<(), String> {
+    let mut manager = state.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+    manager.kill(&session_id)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            get_dev_auth_port,
+            prepare_desktop_auth_state,
+            get_cmd_server_info,
+            get_local_file_metadata,
+            read_local_file,
+            execute_command,
+            execute_stream_command,
+            cancel_stream_command,
+            execute_pty_create,
+            execute_pty_input,
+            execute_pty_resize,
+            execute_pty_kill
+        ])
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Handle deep links passed as CLI args (Linux/Windows)
+            log::info!("Single instance callback with args: {:?}", args);
+            for arg in args.iter().skip(1) {
+                if let Ok(url) = url::Url::parse(arg) {
+                    if url.scheme() == "ultron" {
+                        log::info!("Processing deep link from CLI arg: {}", arg);
+                        handle_auth_deep_link(app, &url);
+                    }
+                }
+            }
+            // Focus the main window
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }))
+        .manage(std::sync::Arc::new(std::sync::Mutex::new(pty::PtyManager::new())) as PtyState)
+        .manage(
+            std::sync::Arc::new(std::sync::Mutex::new(HashMap::<String, u32>::new()))
+                as StreamCommandState,
+        )
+        .manage(PendingDesktopAuthStates(std::sync::Mutex::new(
+            HashMap::new(),
+        )))
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+
+                // Register deep links at runtime for Linux/Windows
+                // This is required for AppImage and non-installed Windows builds
+                #[cfg(any(target_os = "linux", target_os = "windows"))]
+                {
+                    if let Err(e) = app.deep_link().register_all() {
+                        log::warn!("Failed to register deep links: {}", e);
+                    } else {
+                        log::info!("Deep links registered successfully");
+                    }
+                }
+
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    let urls = event.urls();
+                    log::info!("Deep link received: {:?}", urls);
+
+                    for url in urls {
+                        handle_auth_deep_link(&handle, &url);
+                    }
+                });
+            }
+            // Start dev auth callback server when running in debug mode
+            // (deep links don't work with `tauri dev` on macOS)
+            #[cfg(debug_assertions)]
+            {
+                let dev_handle = app.handle().clone();
+                tauri::async_runtime::spawn(start_dev_auth_server(dev_handle));
+            }
+
+            // Start command execution server (always, for local terminal commands)
+            tauri::async_runtime::spawn(start_cmd_server());
+
+            // Check for updates on every launch
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                log::info!("Running update check on launch");
+                save_update_check_timestamp(&handle);
+                check_for_updates(handle.clone(), true).await;
+
+                // Then check every hour if 24h has passed (for long-running sessions)
+                loop {
+                    tokio::time::sleep(Duration::from_secs(60 * 60)).await;
+                    if should_check_for_updates(&handle) {
+                        log::info!("Running scheduled update check (24h interval)");
+                        save_update_check_timestamp(&handle);
+                        check_for_updates(handle.clone(), true).await;
+                    }
+                }
+            });
+
+            log::info!("Ultron-AI Desktop initialized");
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(pty_state) = app.try_state::<PtyState>() {
+                    if let Ok(mut manager) = pty_state.lock() {
+                        manager.stop_all();
+                    }
+                }
+            }
+        });
+}

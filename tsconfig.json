@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@/convex/*": [
+        "./convex/*"
       ]
     }
   },
@@ -37,6 +40,9 @@
     "**/*.mts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/*"
   ]
 }

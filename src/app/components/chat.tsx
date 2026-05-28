@@ -1,0 +1,1337 @@
+"use client";
+
+import { useChat, type UseChatHelpers } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import {
+  useRef,
+  useEffect,
+  useState,
+  useReducer,
+  useCallback,
+  type RefObject,
+} from "react";
+import { useQuery, usePaginatedQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { FileDetails } from "@/types/file";
+import { Messages } from "./Messages";
+import { ChatInput } from "./ChatInput";
+import type { RateLimitWarningData } from "./RateLimitWarning";
+import { ComputerSidebar } from "./ComputerSidebar";
+import ChatHeader from "./ChatHeader";
+import Footer from "./Footer";
+import { useMessageScroll } from "../hooks/useMessageScroll";
+import { useChatHandlers } from "../hooks/useChatHandlers";
+import { useGlobalState } from "../contexts/GlobalState";
+import { useFileUpload } from "../hooks/useFileUpload";
+import { useDocumentDragAndDrop } from "../hooks/useDocumentDragAndDrop";
+import { DragDropOverlay } from "./DragDropOverlay";
+import { normalizeMessages } from "@/lib/utils/message-processor";
+import { ChatSDKError } from "@/lib/errors";
+import { fetchWithErrorHandlers, convertToUIMessages } from "@/lib/utils";
+import {
+  fetchAgentLongStream,
+  resumeAgentLongStream,
+} from "@/lib/chat/agent-long-transport";
+import {
+  LEGACY_DESKTOP_AGENT_UPDATE_MESSAGE,
+  isLegacyDesktopAgentClient,
+  shouldUseAgentLongForAgent,
+} from "@/lib/chat/agent-routing";
+import { isTauriEnvironment } from "@/app/hooks/useTauri";
+import { stripAgentLongHeartbeatPartsFromMessages } from "@/lib/chat/agent-long-heartbeat";
+import { toast } from "sonner";
+import type { Todo, ChatMessage, ChatMode } from "@/types";
+import { coerceSelectedModel } from "@/types/chat";
+import type { ContextUsageData } from "./ContextUsageIndicator";
+import { shouldTreatAsMerge } from "@/lib/utils/todo-utils";
+import { v4 as uuidv4 } from "uuid";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useParams, useRouter } from "next/navigation";
+import { ConvexErrorBoundary } from "./ConvexErrorBoundary";
+import { useAutoResume } from "../hooks/useAutoResume";
+import { useAutoContinue } from "../hooks/useAutoContinue";
+import { useLatestRef } from "../hooks/useLatestRef";
+import { useDataStreamDispatch } from "./DataStreamProvider";
+import { removeDraft } from "@/lib/utils/client-storage";
+import { parseRateLimitWarning } from "@/lib/utils/parse-rate-limit-warning";
+import Loading from "@/components/ui/loading";
+
+import { HackingSuggestions } from "./HackingSuggestions";
+
+// --- Streaming ephemeral state reducer ---
+// Consolidates high-frequency streaming state updates into a single dispatch
+// to avoid cascading re-renders from multiple independent useState calls.
+interface StreamingEphemeralState {
+  uploadStatus: { message: string; isUploading: boolean } | null;
+  summarizationStatus: {
+    status: "started" | "completed";
+    message: string;
+  } | null;
+  rateLimitWarning: RateLimitWarningData | null;
+  contextUsage: ContextUsageData;
+}
+
+type StreamingAction =
+  | {
+      type: "SET_UPLOAD_STATUS";
+      payload: StreamingEphemeralState["uploadStatus"];
+    }
+  | {
+      type: "SET_SUMMARIZATION_STATUS";
+      payload: StreamingEphemeralState["summarizationStatus"];
+    }
+  | {
+      type: "SET_RATE_LIMIT_WARNING";
+      payload: StreamingEphemeralState["rateLimitWarning"];
+    }
+  | { type: "SET_CONTEXT_USAGE"; payload: ContextUsageData }
+  | { type: "RESET_ON_FINISH" };
+
+const initialStreamingState: StreamingEphemeralState = {
+  uploadStatus: null,
+  summarizationStatus: null,
+  rateLimitWarning: null,
+  contextUsage: { usedTokens: 0, maxTokens: 0 },
+};
+
+function streamingReducer(
+  state: StreamingEphemeralState,
+  action: StreamingAction,
+): StreamingEphemeralState {
+  switch (action.type) {
+    case "SET_UPLOAD_STATUS":
+      if (state.uploadStatus === action.payload) return state;
+      return { ...state, uploadStatus: action.payload };
+    case "SET_SUMMARIZATION_STATUS":
+      if (state.summarizationStatus === action.payload) return state;
+      return { ...state, summarizationStatus: action.payload };
+    case "SET_RATE_LIMIT_WARNING":
+      return { ...state, rateLimitWarning: action.payload };
+    case "SET_CONTEXT_USAGE":
+      return { ...state, contextUsage: action.payload };
+    case "RESET_ON_FINISH":
+      if (state.uploadStatus === null && state.summarizationStatus === null)
+        return state;
+      return {
+        ...state,
+        uploadStatus: null,
+        summarizationStatus: null,
+      };
+    default:
+      return state;
+  }
+}
+
+// Renderless component that isolates dataStream state subscriptions
+// (useAutoResume + useAutoContinue) from the Chat component.
+// Without this boundary, Chat subscribes to DataStreamStateContext
+// through these hooks and re-renders on every stream chunk.
+function StreamEffects({
+  autoResume,
+  serverMessages,
+  resumeStream,
+  setMessages,
+  status,
+  chatMode,
+  sendMessage,
+  hasManuallyStoppedRef,
+  todos,
+  temporaryChatsEnabled,
+  sandboxPreference,
+  selectedModel,
+  resetRef,
+  hasActiveStream,
+}: {
+  autoResume: boolean;
+  serverMessages: ChatMessage[];
+  resumeStream: UseChatHelpers<ChatMessage>["resumeStream"];
+  setMessages: UseChatHelpers<ChatMessage>["setMessages"];
+  status: UseChatHelpers<ChatMessage>["status"];
+  chatMode: string;
+  sendMessage: (
+    message: { text: string } | any,
+    options?: { body?: Record<string, unknown> },
+  ) => void;
+  hasManuallyStoppedRef: RefObject<boolean>;
+  todos: Todo[];
+  temporaryChatsEnabled: boolean;
+  sandboxPreference: string;
+  selectedModel: string;
+  resetRef: RefObject<(() => void) | null>;
+  hasActiveStream: boolean | undefined;
+}) {
+  useAutoResume({
+    autoResume,
+    initialMessages: serverMessages,
+    resumeStream,
+    setMessages,
+    hasActiveStream,
+  });
+
+  const { resetAutoContinueCount } = useAutoContinue({
+    status,
+    chatMode,
+    sendMessage,
+    hasManuallyStoppedRef,
+    todos,
+    temporaryChatsEnabled,
+    sandboxPreference,
+    selectedModel,
+  });
+
+  // Expose resetAutoContinueCount to parent via ref (avoids state coupling)
+  useEffect(() => {
+    resetRef.current = resetAutoContinueCount;
+  }, [resetRef, resetAutoContinueCount]);
+
+  return null;
+}
+
+export const Chat = ({ autoResume }: { autoResume: boolean }) => {
+  const params = useParams();
+  const routeChatId = params?.id as string | undefined;
+  const router = useRouter();
+  const isMobile = useIsMobile();
+  const { setDataStream, setIsAutoResuming } = useDataStreamDispatch();
+  const [streamingState, dispatchStreaming] = useReducer(
+    streamingReducer,
+    initialStreamingState,
+  );
+  const { uploadStatus, summarizationStatus, rateLimitWarning, contextUsage } =
+    streamingState;
+
+  const {
+    input,
+    chatMode,
+    setChatMode,
+    sidebarOpen,
+    chatSidebarOpen,
+    setChatSidebarOpen,
+    initializeChat,
+    mergeTodos,
+    setTodos,
+    replaceAssistantTodos,
+    temporaryChatsEnabled,
+    setChatReset,
+    hasUserDismissedRateLimitWarning,
+    setHasUserDismissedRateLimitWarning,
+    messageQueue,
+    dequeueNext,
+    clearQueue,
+    queueBehavior,
+    todos,
+    sandboxPreference,
+    setSandboxPreference,
+    selectedModel,
+    setSelectedModel,
+    subscription,
+  } = useGlobalState();
+
+  // Simple logic: use route chatId if provided, otherwise generate new one
+  const [chatId, setChatId] = useState<string>(() => {
+    return routeChatId || uuidv4();
+  });
+
+  // Track whether this is an existing chat (prop-driven initially, flips after first completion)
+  const [isExistingChat, setIsExistingChat] = useState<boolean>(!!routeChatId);
+  const wasNewChatRef = useRef(!routeChatId);
+  const shouldFetchMessages = isExistingChat;
+
+  // Refs to avoid stale closures in callbacks
+  const isExistingChatRef = useLatestRef(isExistingChat);
+  const chatModeRef = useLatestRef(chatMode);
+  const subscriptionRef = useLatestRef(subscription);
+
+  // Suppress transient "Chat Not Found" while server creates the chat
+  const [awaitingServerChat, setAwaitingServerChat] = useState<boolean>(false);
+
+  // Store file metadata separately from AI SDK message state (for temporary chats)
+  const [tempChatFileDetails, setTempChatFileDetails] = useState<
+    Map<string, FileDetails[]>
+  >(new Map());
+
+  // Title streamed mid-response so the header updates before Convex persists it
+  const [streamedTitle, setStreamedTitle] = useState<string | null>(null);
+
+  const temporaryChatsEnabledRef = useLatestRef(temporaryChatsEnabled);
+  // Use global state ref so streaming callback reads latest value
+  const hasUserDismissedWarningRef = useLatestRef(
+    hasUserDismissedRateLimitWarning,
+  );
+  // Use ref for todos to avoid stale closures in auto-send
+  const todosRef = useLatestRef(todos);
+  // Use ref for sandbox preference to avoid stale closures in auto-send
+  const sandboxPreferenceRef = useLatestRef(sandboxPreference);
+
+  // Ensure we only initialize mode from server once per chat id
+  const hasInitializedModeFromChatRef = useRef(false);
+  // Track whether sandbox preference has been initialized from chat for this chat id
+  const hasInitializedSandboxRef = useRef(false);
+  // Track whether the stored sandbox connection was validated (stale connections unlock the selector)
+  const hasInitializedModelRef = useRef(false);
+  // Snapshot of the last picker values successfully persisted to the chat doc.
+  // Seeded after init from chatData; subsequent picker toggles trigger a debounced patch.
+  const persistedPrefsRef = useRef<{ model: string; mode: string } | null>(
+    null,
+  );
+
+  // Sync local chat state from URL (single source of truth)
+  useEffect(() => {
+    setStreamedTitle(null);
+    if (routeChatId) {
+      setChatId(routeChatId);
+      setIsExistingChat(true);
+    } else {
+      // Navigated to "/" (new chat) — reset to fresh state
+      setChatId(uuidv4());
+      setIsExistingChat(false);
+      wasNewChatRef.current = true;
+    }
+  }, [routeChatId]);
+
+  // Use paginated query to load messages in batches of 14
+  const paginatedMessages = usePaginatedQuery(
+    api.messages.getMessagesByChatId,
+    shouldFetchMessages ? { chatId } : "skip",
+    { initialNumItems: 14 },
+  );
+
+  // Get chat data to retrieve title when loading existing chat
+  const chatData = useQuery(
+    api.chats.getChatByIdFromClient,
+    shouldFetchMessages ? { id: chatId } : "skip",
+  );
+
+  // Query local sandbox connections only when we need to validate a non-E2B sandbox_type
+  const storedSandboxType = (chatData as any)?.sandbox_type as
+    | string
+    | undefined;
+  const needsConnectionValidation =
+    !!storedSandboxType &&
+    storedSandboxType !== "e2b" &&
+    storedSandboxType !== "tauri" &&
+    !hasInitializedSandboxRef.current;
+  const localConnections = useQuery(
+    api.localSandbox.listConnections,
+    needsConnectionValidation ? undefined : "skip",
+  );
+
+  // Prefer the mid-stream title — the server seeds chatData.title with the
+  // user's first message before generation completes, which would otherwise
+  // flicker into the header on abort.
+  const chatTitle = streamedTitle ?? chatData?.title ?? null;
+  const activeTriggerRunRef = useLatestRef(
+    (chatData as any)?.active_trigger_run_id as string | undefined,
+  );
+
+  // Convert paginated Convex messages to UI format for useChat and useAutoResume
+  // Messages come from server in descending order (newest first from pagination); reverse for chronological order
+  const serverMessages: ChatMessage[] =
+    paginatedMessages.results && paginatedMessages.results.length > 0
+      ? convertToUIMessages([...paginatedMessages.results].reverse())
+      : [];
+
+  // State to prevent double-processing of queue
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  // Ref to track when "Send Now" is actively processing to prevent auto-processing interference
+  const isSendingNowRef = useRef(false);
+  // Ref to track if user manually stopped - prevents auto-processing until new message submitted
+  const hasManuallyStoppedRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
+
+  // Ref for setMessages — needed by DefaultChatTransport which is created before useChat returns
+  const setMessagesRef = useRef<(messages: any[]) => void>(() => {});
+
+  // Default transport (OpenRouter) - stored in ref since it's created before useChat
+  const transportRef = useRef(
+    new DefaultChatTransport({
+      api: "/api/chat",
+      fetch: async (input, init) => {
+        const mode = chatModeRef.current;
+        const isTauri = isTauriEnvironment();
+        if (isLegacyDesktopAgentClient({ mode, isTauri })) {
+          throw new ChatSDKError(
+            "forbidden:chat",
+            LEGACY_DESKTOP_AGENT_UPDATE_MESSAGE,
+          );
+        }
+        const useTriggerAgent = shouldUseAgentLongForAgent({
+          mode,
+          subscription: subscriptionRef.current,
+          isTauri,
+        });
+        if (useTriggerAgent) {
+          // useChat reuses this fetch for both POST sendMessages and GET
+          // reconnectToStream — dispatch on method.
+          if (init?.method === "GET") {
+            return resumeAgentLongStream(
+              typeof input === "string" ? input : input.toString(),
+              init,
+            );
+          }
+          return fetchAgentLongStream(init);
+        }
+        // Reconnect for legacy "agent-long" chats normalised to "agent" mode on
+        // load — prepareReconnectToStreamRequest already pointed at the resume
+        // URL, so route based on the URL (not on ref state) to be resilient to
+        // stale refs.
+        if (
+          init?.method === "GET" &&
+          (typeof input === "string" ? input : input.toString()).includes(
+            "/api/agent-long/resume",
+          )
+        ) {
+          return resumeAgentLongStream(
+            typeof input === "string" ? input : input.toString(),
+            init,
+          );
+        }
+        return fetchWithErrorHandlers(input, init);
+      },
+      prepareReconnectToStreamRequest: ({ id, api }) => {
+        // Use the agent-long resume endpoint when there is a stored trigger run
+        // (covers legacy "agent-long" chats normalised to "agent" on load) OR
+        // when the current run is using Trigger.dev for agent mode.
+        const useTriggerAgent = shouldUseAgentLongForAgent({
+          mode: chatModeRef.current,
+          subscription: subscriptionRef.current,
+          isTauri: isTauriEnvironment(),
+        });
+        if (useTriggerAgent || !!activeTriggerRunRef.current) {
+          return {
+            api: `/api/agent-long/resume?chatId=${encodeURIComponent(id)}`,
+          };
+        }
+        return { api: `${api}/${id}/stream` };
+      },
+      prepareSendMessagesRequest: ({ id, messages, body }) => {
+        const {
+          messages: normalizedMessages,
+          lastMessage,
+          hasChanges,
+        } = normalizeMessages(messages as ChatMessage[]);
+        if (hasChanges) {
+          setMessagesRef.current(normalizedMessages);
+        }
+
+        const isTemporaryChat =
+          !isExistingChatRef.current && temporaryChatsEnabledRef.current;
+
+        const stripUrlsFromMessages = (msgs: ChatMessage[]): ChatMessage[] => {
+          const messagesWithoutHeartbeats =
+            stripAgentLongHeartbeatPartsFromMessages(msgs);
+          return messagesWithoutHeartbeats.map((msg) => {
+            if (!msg.parts || msg.parts.length === 0) return msg;
+            const strippedParts = msg.parts.map((part: any) => {
+              if (part.type === "file" && "url" in part) {
+                const { url, ...partWithoutUrl } = part;
+                return partWithoutUrl;
+              }
+              return part;
+            });
+            return {
+              ...msg,
+              parts: strippedParts,
+            };
+          });
+        };
+
+        const messagesToSend = isTemporaryChat
+          ? normalizedMessages
+          : lastMessage;
+        const messagesWithoutUrls = stripUrlsFromMessages(messagesToSend);
+
+        return {
+          body: {
+            chatId: id,
+            messages: messagesWithoutUrls,
+            ...body,
+          },
+        };
+      },
+    }),
+  );
+
+  const {
+    messages,
+    sendMessage,
+    setMessages,
+    status,
+    stop,
+    error,
+    regenerate,
+    resumeStream,
+  } = useChat({
+    id: chatId,
+    messages: serverMessages,
+    experimental_throttle: 150,
+    generateId: () => uuidv4(),
+
+    transport: transportRef.current,
+
+    onData: (dataPart) => {
+      setDataStream((ds) => (ds ? [...ds, dataPart] : []));
+      switch (dataPart.type) {
+        case "data-upload-status": {
+          const uploadData = dataPart.data as {
+            message: string;
+            isUploading: boolean;
+          };
+          dispatchStreaming({
+            type: "SET_UPLOAD_STATUS",
+            payload: uploadData.isUploading ? uploadData : null,
+          });
+          break;
+        }
+        case "data-summarization": {
+          const summaryData = dataPart.data as {
+            status: "started" | "completed";
+            message: string;
+          };
+          dispatchStreaming({
+            type: "SET_SUMMARIZATION_STATUS",
+            payload: summaryData.status === "started" ? summaryData : null,
+          });
+          break;
+        }
+        case "data-rate-limit-warning": {
+          const rawData = dataPart.data as Record<string, unknown>;
+          const parsed = parseRateLimitWarning(rawData, {
+            hasUserDismissed: hasUserDismissedWarningRef.current,
+          });
+          if (parsed) {
+            dispatchStreaming({
+              type: "SET_RATE_LIMIT_WARNING",
+              payload: parsed,
+            });
+          }
+          break;
+        }
+        case "data-file-metadata": {
+          const fileData = dataPart.data as {
+            messageId: string;
+            fileDetails: FileDetails[];
+          };
+          // Merge into parallel state (outside AI SDK control)
+          // Uses merge-with-dedup so incremental events (per-file) and
+          // the onFinish batch event both work without duplicates
+          setTempChatFileDetails((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(fileData.messageId) || [];
+            const existingIds = new Set(
+              existing.map((f: FileDetails) => f.fileId),
+            );
+            const newFiles = fileData.fileDetails.filter(
+              (f: FileDetails) => !existingIds.has(f.fileId),
+            );
+            next.set(fileData.messageId, [...existing, ...newFiles]);
+            return next;
+          });
+          break;
+        }
+        case "data-context-usage": {
+          const usage = dataPart.data as ContextUsageData;
+          dispatchStreaming({ type: "SET_CONTEXT_USAGE", payload: usage });
+          break;
+        }
+        case "data-title": {
+          const titleData = dataPart.data as { chatTitle?: string };
+          if (titleData?.chatTitle) {
+            setStreamedTitle(titleData.chatTitle);
+          }
+          break;
+        }
+        case "data-sandbox-fallback": {
+          const fallbackData = dataPart.data as {
+            occurred: boolean;
+            reason: "connection_unavailable" | "no_local_connections";
+            requestedPreference: string;
+            actualSandbox: string;
+            actualSandboxName?: string;
+          };
+
+          // Skip fallback notifications for Tauri — the server-side health check
+          // hits its own localhost, not the user's desktop, so it consistently
+          // reports false disconnects. The frontend already validated Tauri availability.
+          if (fallbackData.requestedPreference === "tauri") {
+            break;
+          }
+
+          // Update sandbox preference to match actual sandbox used
+          setSandboxPreference(fallbackData.actualSandbox);
+
+          // Show toast notification
+          const message =
+            fallbackData.reason === "no_local_connections"
+              ? `Local sandbox unavailable. Using ${fallbackData.actualSandboxName || "Cloud"}.`
+              : `Selected sandbox disconnected. Switched to ${fallbackData.actualSandboxName || "Cloud"}.`;
+          toast.info(message, { duration: 5000 });
+          break;
+        }
+      }
+    },
+    onToolCall: ({ toolCall }) => {
+      if (toolCall.toolName === "todo_write" && toolCall.input) {
+        const todoInput = toolCall.input as { merge?: boolean; todos: Todo[] };
+        if (!todoInput.todos) return;
+        // Determine last assistant message id to stamp/replace.
+        // Read via ref to avoid closing over the streaming messages array.
+        const currentMessages = messagesRef.current;
+        let lastAssistantId: string | undefined;
+        for (let i = currentMessages.length - 1; i >= 0; i--) {
+          if (currentMessages[i].role === "assistant") {
+            lastAssistantId = currentMessages[i].id;
+            break;
+          }
+        }
+
+        const treatAsMerge = shouldTreatAsMerge(
+          todoInput.merge,
+          todoInput.todos,
+        );
+
+        if (!treatAsMerge) {
+          // Fresh plan creation: replace assistant todos with new ones, stamp with current assistant id if present.
+          replaceAssistantTodos(todoInput.todos, lastAssistantId);
+        } else {
+          // Partial update: merge
+          mergeTodos(todoInput.todos);
+        }
+      }
+    },
+    onFinish: () => {
+      setIsAutoResuming(false);
+      setAwaitingServerChat(false);
+      dispatchStreaming({ type: "RESET_ON_FINISH" });
+
+      const isTemporaryChat =
+        !isExistingChatRef.current && temporaryChatsEnabledRef.current;
+      if (!isExistingChatRef.current && !isTemporaryChat) {
+        // Update URL without full navigation so this Chat stays mounted and
+        // status can transition to "ready" (stop button → send button).
+        window.history.replaceState({}, "", `/c/${chatId}`);
+        removeDraft("new");
+        setIsExistingChat(true);
+      }
+    },
+    onError: (error) => {
+      setIsAutoResuming(false);
+      setAwaitingServerChat(false);
+      dispatchStreaming({ type: "RESET_ON_FINISH" });
+      if (error instanceof ChatSDKError) {
+        const errorMessage =
+          typeof error.cause === "string" ? error.cause : error.message;
+        if (error.type !== "rate_limit" || isMobile) {
+          toast.error(errorMessage);
+        }
+      } else if (isMobile && error.name !== "AbortError") {
+        toast.error(error.message || "An error occurred.");
+      }
+    },
+  });
+
+  // Keep refs in sync so closures read latest values
+  setMessagesRef.current = setMessages;
+  messagesRef.current = messages;
+
+  // Ref (not state) so the Convex sync effect only fires when paginatedMessages.results
+  // changes, not on status transitions — avoiding the stale-data overwrite on stream stop.
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
+  // Ref bridge: StreamEffects exposes resetAutoContinueCount here
+  const resetAutoContinueRef = useRef<(() => void) | null>(null);
+  const resetAutoContinueCount = useCallback(() => {
+    resetAutoContinueRef.current?.();
+  }, []);
+
+  // Register a reset function with global state so initializeNewChat can call it
+  useEffect(() => {
+    const reset = () => {
+      setMessages([]);
+      setChatId(uuidv4());
+      setIsExistingChat(false);
+      wasNewChatRef.current = true;
+      setTodos([]);
+      setStreamedTitle(null);
+      setAwaitingServerChat(false);
+      dispatchStreaming({ type: "RESET_ON_FINISH" });
+      dispatchStreaming({
+        type: "SET_CONTEXT_USAGE",
+        payload: { usedTokens: 0, maxTokens: 0 },
+      });
+      // Clear DataStreamProvider state so stale parts from the previous chat
+      // don't feed into useAutoResume/useAutoContinue in the next conversation.
+      setDataStream([]);
+      setIsAutoResuming(false);
+      setHasUserDismissedRateLimitWarning(false);
+      resetAutoContinueCount();
+    };
+    setChatReset(reset);
+    return () => setChatReset(null);
+  }, [setChatReset, setMessages, setTodos, resetAutoContinueCount]);
+
+  // Reset the one-time initializer when chat changes (must come before chatData effect to handle cached data)
+  useEffect(() => {
+    hasInitializedModeFromChatRef.current = false;
+    hasInitializedSandboxRef.current = false;
+    hasInitializedModelRef.current = false;
+    persistedPrefsRef.current = null;
+  }, [chatId]);
+
+  // Set chat title and load todos when chat data is loaded
+  useEffect(() => {
+    // Only process when we intend to fetch for an existing chat
+    if (!shouldFetchMessages) {
+      return;
+    }
+
+    const dataId = (chatData as any)?.id as string | undefined;
+    // Ignore when no data or data is stale (doesn't match current chatId)
+    if (!chatData || dataId !== chatId) {
+      return;
+    }
+
+    // Load todos from the chat data if they exist.
+    if (chatData.todos) {
+      // setTodos signature expects Todo[], so derive the new array first
+      const nextTodos: Todo[] = (() => {
+        const incoming: Todo[] = chatData.todos as Todo[];
+        if (!incoming || incoming.length === 0) return [] as Todo[];
+
+        // Split by assistant attribution
+        const incomingAssistant: Todo[] = incoming.filter((t: Todo) =>
+          Boolean(t.sourceMessageId),
+        );
+        const incomingManual: Todo[] = incoming.filter(
+          (t: Todo) => !t.sourceMessageId,
+        );
+
+        const prevManual: Todo[] = [];
+        // We can't access previous value directly here without functional setter.
+        // Fallback: since server is source of truth, treat incoming manual todos as updates only for ids we already have.
+        // The actual merge of manual todos will be handled elsewhere when tool updates come in.
+
+        // Build manual map from previous
+        // Replace assistant todos entirely with incoming assistant todos and keep incoming manual ones as-is
+        return [...incomingAssistant, ...incomingManual] as Todo[];
+      })();
+
+      setTodos(nextTodos);
+    } else {
+      setTodos([]);
+    }
+    // Server has responded for this chat id; stop suppressing not-found state
+    setAwaitingServerChat(false);
+    // Initialize mode from server once per chat id (only for existing chats)
+    if (!hasInitializedModeFromChatRef.current && isExistingChat) {
+      hasInitializedModeFromChatRef.current = true;
+      const slug = (chatData as any).default_model_slug;
+      if (slug === "ask" || slug === "agent") {
+        setChatMode(slug);
+      } else if (slug === "agent-long") {
+        // Legacy chats stored as agent-long map to agent mode
+        setChatMode("agent");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatData, setTodos, shouldFetchMessages, isExistingChat, chatId]);
+
+  // Initialize sandbox preference from chat data, validated against available connections.
+  // Separate from the main chatData effect so it can re-run when localConnections loads.
+  useEffect(() => {
+    if (hasInitializedSandboxRef.current || !isExistingChat) return;
+
+    const dataId = (chatData as any)?.id as string | undefined;
+    if (!chatData || dataId !== chatId) return;
+
+    if (!storedSandboxType) {
+      if (wasNewChatRef.current) {
+        // Chat was just created — keep the user's current sandboxPreference
+        // (it was already sent in the request body). Don't reset to cloud.
+      } else {
+        // Navigated to an existing chat with no stored sandbox type — reset to cloud
+        // so a stale local preference from a previous chat doesn't persist.
+        setSandboxPreference("e2b");
+      }
+      hasInitializedSandboxRef.current = true;
+      return;
+    }
+
+    if (storedSandboxType === "e2b") {
+      setSandboxPreference("e2b");
+      hasInitializedSandboxRef.current = true;
+    } else if (storedSandboxType === "tauri") {
+      // "tauri" is a legacy preference — desktop now uses "desktop"
+      setSandboxPreference("e2b");
+      hasInitializedSandboxRef.current = true;
+    } else if (storedSandboxType === "desktop") {
+      // Desktop preference — validate that a desktop connection exists
+      if (localConnections !== undefined) {
+        const desktopExists = localConnections.some((conn) => conn.isDesktop);
+        setSandboxPreference(desktopExists ? "desktop" : "e2b");
+        hasInitializedSandboxRef.current = true;
+      }
+      // If localConnections is still loading, wait for next render
+    } else if (localConnections !== undefined) {
+      // For remote connectionIds, validate the connection still exists
+      const connectionExists = localConnections.some(
+        (conn) => conn.connectionId === storedSandboxType,
+      );
+      if (connectionExists) {
+        setSandboxPreference(storedSandboxType);
+      } else {
+        // Stale connection — fall back to cloud
+        setSandboxPreference("e2b");
+      }
+      hasInitializedSandboxRef.current = true;
+    }
+    // If localConnections is still loading (undefined), wait for next render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatData, localConnections, isExistingChat, chatId]);
+
+  // Initialize model selection from chat data
+  useEffect(() => {
+    if (hasInitializedModelRef.current || !isExistingChat) return;
+    const dataId = (chatData as any)?.id as string | undefined;
+    if (!chatData || dataId !== chatId) return;
+    const savedModel = (chatData as any).selected_model as string | undefined;
+    hasInitializedModelRef.current = true;
+    const coerced = coerceSelectedModel(savedModel ?? null);
+    if (coerced) {
+      setSelectedModel(coerced);
+    }
+  }, [chatData, isExistingChat, chatId]);
+
+  // Persist picker preferences (model + mode) when the user toggles them.
+  // Debounced so quick toggles don't spam Convex; baseline is seeded from the
+  // chat's stored values so the post-init render doesn't trigger a no-op write.
+  const updateChatPreferences = useMutation(api.chats.updateChatPreferences);
+  useEffect(() => {
+    if (!isExistingChat || !chatData) return;
+    const dataId = (chatData as any).id as string | undefined;
+    if (dataId !== chatId) return;
+    if (
+      !hasInitializedModelRef.current ||
+      !hasInitializedModeFromChatRef.current
+    ) {
+      return;
+    }
+
+    if (persistedPrefsRef.current === null) {
+      const savedModel = (chatData as any).selected_model as string | undefined;
+      const savedMode = (chatData as any).default_model_slug as
+        | string
+        | undefined;
+      persistedPrefsRef.current = {
+        model: savedModel ?? selectedModel,
+        mode: savedMode ?? chatMode,
+      };
+    }
+
+    const last = persistedPrefsRef.current;
+    if (last.model === selectedModel && last.mode === chatMode) return;
+
+    // `cancelled` guards both branches: clearTimeout cancels before the
+    // request fires, and the flag prevents an in-flight request from writing
+    // its (stale) snapshot to persistedPrefsRef after the user has already
+    // navigated to a different chat or toggled again.
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      if (cancelled) return;
+      const snapshot = { model: selectedModel, mode: chatMode };
+      void updateChatPreferences({
+        id: chatId,
+        selectedModel,
+        mode: chatMode,
+      })
+        .then(() => {
+          if (cancelled) return;
+          persistedPrefsRef.current = snapshot;
+        })
+        .catch(() => {
+          // Silent — picker state in memory is still correct; backend will
+          // re-persist on next send via updateChat.
+        });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [
+    selectedModel,
+    chatMode,
+    isExistingChat,
+    chatId,
+    chatData,
+    updateChatPreferences,
+  ]);
+
+  // Sync Convex real-time data with useChat messages.
+  // Uses statusRef (not status state) so this effect only fires when
+  // paginatedMessages.results actually changes — not on status transitions.
+  // Guards against BOTH "streaming" and "submitted" statuses to prevent
+  // Convex real-time updates from overwriting useChat's in-flight state.
+  // Without the "submitted" guard, a race condition occurs in production:
+  // Convex receives the user message (via handleInitialChatAndUserMessage)
+  // and pushes a subscription update before the first streaming chunk arrives,
+  // resetting useChat's messages and causing an empty AI response.
+  useEffect(() => {
+    if (
+      statusRef.current === "streaming" ||
+      statusRef.current === "submitted"
+    ) {
+      return;
+    }
+    if (!paginatedMessages.results || paginatedMessages.results.length === 0) {
+      return;
+    }
+
+    const uiMessages = convertToUIMessages(
+      [...paginatedMessages.results].reverse(),
+    );
+
+    // Skip if useChat already has the same messages (same IDs, same part count).
+    // This prevents redundant setMessages calls — e.g. after a local provider
+    // save, Convex echoes the same data back via reactive query, which would
+    // otherwise cause a visible flicker from new object references.
+    // Comparing parts.length catches content updates where the ID stays the same.
+    const current = messagesRef.current;
+
+    // Don't overwrite with fewer messages — the backend (e.g. agent-long Trigger.dev
+    // task) hasn't finished persisting the generated messages yet. Once it catches
+    // up, Convex will push the full set and the normal sync below will apply.
+    if (uiMessages.length < current.length) {
+      return;
+    }
+
+    if (
+      current.length === uiMessages.length &&
+      current.every(
+        (m, i) =>
+          m.id === uiMessages[i].id &&
+          (m.parts?.length ?? 0) === (uiMessages[i].parts?.length ?? 0),
+      )
+    ) {
+      return;
+    }
+
+    // Don't let Convex reorder messages that already exist locally. The trigger
+    // task's onFinish saves the assistant message after the stream finishes, so
+    // the next user message may land in Convex first (_creationTime ordering).
+    // Local ordering is authoritative; only accept additive/content updates.
+    const currentIdSet = new Set(current.map((m) => m.id));
+    const uiIdSet = new Set(uiMessages.map((m) => m.id));
+    const uiSharedOrder = uiMessages
+      .map((m) => m.id)
+      .filter((id) => currentIdSet.has(id));
+    const currentSharedOrder = current
+      .map((m) => m.id)
+      .filter((id) => uiIdSet.has(id));
+    if (
+      uiSharedOrder.length > 0 &&
+      uiSharedOrder.join("\0") !== currentSharedOrder.join("\0")
+    ) {
+      return;
+    }
+
+    if (isExistingChat) {
+      setMessages(uiMessages);
+    }
+  }, [paginatedMessages.results, setMessages, isExistingChat, chatId]);
+
+  const { scrollRef, contentRef, scrollToBottom, isAtBottom } =
+    useMessageScroll();
+
+  // File upload with drag and drop support
+  const {
+    isDragOver,
+    showDragOverlay,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+  } = useFileUpload(chatMode);
+
+  // Handle instant scroll to bottom when first loading existing chat messages.
+  // Only runs once per chat — pagination (which prepends older messages and
+  // increases messages.length) must NOT re-trigger this.
+  const hasScrolledToBottomRef = useRef(false);
+  useEffect(() => {
+    hasScrolledToBottomRef.current = false;
+  }, [chatId]);
+  useEffect(() => {
+    if (
+      isExistingChat &&
+      messages.length > 0 &&
+      !hasScrolledToBottomRef.current
+    ) {
+      hasScrolledToBottomRef.current = true;
+      scrollToBottom({ instant: true, force: true });
+    }
+  }, [messages.length, scrollToBottom, isExistingChat]);
+
+  // Re-arm sticky scroll whenever a new user message is appended at the tail.
+  // Stop+send flows (Send Now, stop-and-send) mutate the DOM mid-stream which
+  // knocks use-stick-to-bottom out of "at bottom" state, so we force-scroll on
+  // the new user message to resume following the next generation. Keyed on
+  // tail-id (not length) so pagination prepends don't trigger a scroll jump.
+  const lastMessage = messages[messages.length - 1];
+  const lastId = lastMessage?.id;
+  const lastRole = lastMessage?.role;
+  const prevLastIdRef = useRef<string | undefined>(lastId);
+  useEffect(() => {
+    const prevLastId = prevLastIdRef.current;
+    prevLastIdRef.current = lastId;
+    if (lastId && lastId !== prevLastId && lastRole === "user") {
+      scrollToBottom({ force: true });
+    }
+  }, [lastId, lastRole, scrollToBottom]);
+
+  // Keep a ref to the latest messageQueue to avoid stale closures
+  const messageQueueRef = useLatestRef(messageQueue);
+
+  // Clear queue when navigating to a different chat.
+  // Intentionally reads messageQueueRef at cleanup time (latest value).
+  useEffect(() => {
+    return () => {
+      if (messageQueueRef.current.length > 0) {
+        clearQueue();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, clearQueue]);
+
+  // Document-level drag and drop listeners encapsulated in a hook
+  useDocumentDragAndDrop({
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+  });
+
+  // Automatic queue processing - send next queued message when ready
+  useEffect(() => {
+    if (
+      status === "ready" &&
+      messageQueue.length > 0 &&
+      !isProcessingQueue &&
+      !isSendingNowRef.current &&
+      !hasManuallyStoppedRef.current &&
+      queueBehavior === "queue"
+    ) {
+      setIsProcessingQueue(true);
+      const nextMessage = dequeueNext();
+
+      if (nextMessage) {
+        sendMessage(
+          {
+            text: nextMessage.text,
+            files: nextMessage.files as any,
+          },
+          {
+            body: {
+              mode: chatModeRef.current,
+              todos: todosRef.current,
+              temporary: temporaryChatsEnabledRef.current,
+              sandboxPreference: sandboxPreferenceRef.current,
+            },
+          },
+        );
+      }
+
+      setTimeout(() => setIsProcessingQueue(false), 100);
+    }
+  }, [
+    status,
+    messageQueue.length,
+    isProcessingQueue,
+    dequeueNext,
+    sendMessage,
+    queueBehavior,
+  ]);
+
+  // Chat handlers
+  const {
+    handleSubmit,
+    handleStop,
+    handleRegenerate,
+    handleRetry,
+    handleEditMessage,
+    handleSendNow,
+    handleContinue,
+  } = useChatHandlers({
+    chatId,
+    messages,
+    sendMessage,
+    stop,
+    regenerate,
+    setMessages,
+    isExistingChat,
+    status,
+    isSendingNowRef,
+    hasManuallyStoppedRef,
+    onStopCallback: () => {
+      dispatchStreaming({ type: "RESET_ON_FINISH" });
+    },
+    resetAutoContinueCount,
+  });
+
+  const handleScrollToBottom = () => scrollToBottom({ force: true });
+
+  // Rate limit warning dismiss handler
+  const handleDismissRateLimitWarning = () => {
+    dispatchStreaming({ type: "SET_RATE_LIMIT_WARNING", payload: null });
+    setHasUserDismissedRateLimitWarning(true);
+  };
+
+  // Branch chat handler
+  const branchChatMutation = useMutation(api.messages.branchChat);
+
+  const handleBranchMessage = async (messageId: string) => {
+    try {
+      const newChatId = await branchChatMutation({ messageId });
+      if (!newChatId) {
+        toast.error("That message is no longer available to branch.");
+        return;
+      }
+      initializeChat(newChatId);
+      router.push(`/c/${newChatId}`);
+    } catch (error) {
+      console.error("Failed to branch chat:", error);
+      toast.error("Failed to branch chat. Please try again.");
+    }
+  };
+
+  // Auto-send message after forking a shared chat
+  const autoSendFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoSendFiredRef.current) return;
+    try {
+      const pendingChatId = sessionStorage.getItem("autoSendChatId");
+      if (pendingChatId !== chatId) return;
+    } catch {
+      return;
+    }
+    // Wait for chat to be ready with draft input loaded
+    if (status !== "ready" || !input.trim()) return;
+    // Wait for server messages to be loaded (forked chat has messages)
+    if (!isExistingChat || messages.length === 0) return;
+
+    autoSendFiredRef.current = true;
+    sessionStorage.removeItem("autoSendChatId");
+    // Trigger submit with a synthetic event
+    handleSubmit(new Event("submit") as unknown as React.FormEvent);
+  }, [chatId, status, input, isExistingChat, messages.length, handleSubmit]);
+
+  const hasMessages = messages.length > 0;
+  const showChatLayout = hasMessages || isExistingChat;
+
+  // UI-level temporary chat flag
+  const isTempChat = !isExistingChat && temporaryChatsEnabled;
+
+  // Get branched chat info directly from chatData (no additional query needed)
+  const branchedFromChatId = chatData?.branched_from_chat_id;
+  const branchedFromChatTitle = (chatData as any)?.branched_from_title;
+
+  // Check if we tried to load an existing chat but it doesn't exist or doesn't belong to user
+  const isChatNotFound =
+    isExistingChat &&
+    chatData === null &&
+    shouldFetchMessages &&
+    !awaitingServerChat;
+
+  return (
+    <ConvexErrorBoundary>
+      <StreamEffects
+        key={chatId}
+        autoResume={autoResume}
+        serverMessages={serverMessages}
+        resumeStream={resumeStream}
+        setMessages={setMessages}
+        status={status}
+        chatMode={chatMode}
+        sendMessage={sendMessage}
+        hasManuallyStoppedRef={hasManuallyStoppedRef}
+        todos={todos}
+        temporaryChatsEnabled={temporaryChatsEnabled}
+        sandboxPreference={sandboxPreference}
+        selectedModel={selectedModel}
+        resetRef={resetAutoContinueRef}
+        hasActiveStream={
+          chatData === undefined
+            ? undefined
+            : !!chatData?.active_stream_id || !!chatData?.active_trigger_run_id
+        }
+      />
+      <div className="flex min-h-0 flex-1 w-full flex-col bg-background overflow-hidden">
+        <div className="flex min-h-0 flex-1 min-w-0 relative">
+          {/* Left side - Chat content */}
+          <div className="flex min-h-0 flex-col flex-1 min-w-0">
+            {/* Unified Header */}
+            <ChatHeader
+              hasMessages={hasMessages}
+              hasActiveChat={isExistingChat}
+              chatTitle={chatTitle}
+              id={chatId}
+              chatData={chatData}
+              chatSidebarOpen={chatSidebarOpen}
+              isExistingChat={isExistingChat}
+              isChatNotFound={isChatNotFound}
+              branchedFromChatTitle={branchedFromChatTitle}
+            />
+
+            {/* Chat interface */}
+            <div className="bg-background flex flex-col flex-1 relative min-h-0">
+              {/* Messages area */}
+              {isChatNotFound ? (
+                <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 min-h-0">
+                  <div className="w-full max-w-full sm:max-w-[768px] sm:min-w-[390px] flex flex-col items-center space-y-8">
+                    <div className="text-center">
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        Chat Not Found
+                      </h1>
+                      <p className="text-muted-foreground">
+                        This chat doesn&apos;t exist or you don&apos;t have
+                        permission to view it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : showChatLayout ? (
+                <Messages
+                  scrollRef={scrollRef as RefObject<HTMLDivElement | null>}
+                  contentRef={contentRef as RefObject<HTMLDivElement | null>}
+                  messages={messages}
+                  setMessages={setMessages}
+                  onRegenerate={handleRegenerate}
+                  onRetry={handleRetry}
+                  onContinue={handleContinue}
+                  onReconnect={resumeStream}
+                  onEditMessage={handleEditMessage}
+                  onBranchMessage={handleBranchMessage}
+                  status={status}
+                  error={error || null}
+                  paginationStatus={paginatedMessages.status}
+                  loadMore={paginatedMessages.loadMore}
+                  isTemporaryChat={isTempChat}
+                  tempChatFileDetails={tempChatFileDetails}
+                  finishReason={chatData?.finish_reason}
+                  uploadStatus={uploadStatus}
+                  summarizationStatus={summarizationStatus}
+                  mode={chatMode ?? (chatData as any)?.default_model_slug}
+                  chatTitle={chatTitle}
+                  branchedFromChatId={branchedFromChatId}
+                  branchedFromChatTitle={branchedFromChatTitle}
+                />
+              ) : (
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex-1 flex flex-col items-center justify-center px-4 min-h-0">
+                    <div className="w-full max-w-full sm:max-w-[768px] sm:min-w-[390px] flex flex-col items-center">
+                      <div className="text-center">
+                        {temporaryChatsEnabled ? (
+                          <>
+                            <h1 className="text-3xl font-bold text-foreground mb-2">
+                              Temporary Chat
+                            </h1>
+                            <p className="text-muted-foreground max-w-md mx-auto px-4 py-3">
+                              This chat won&apos;t appear in history, use or
+                              update Ultron-AI&apos;s memory, or be used to train
+                              models. This chat will be deleted when you refresh
+                              the page.
+                            </p>
+                          </>
+                        ) : (
+                          <HackingSuggestions />
+                        )}
+                      </div>
+
+                      {/* Centered input (desktop only) */}
+                      {!isMobile && (
+                        <div className="w-full">
+                          <ChatInput
+                            onSubmit={handleSubmit}
+                            onStop={handleStop}
+                            onSendNow={handleSendNow}
+                            status={status}
+                            isCentered={true}
+                            hasMessages={hasMessages}
+                            isAtBottom={isAtBottom}
+                            onScrollToBottom={handleScrollToBottom}
+                            isNewChat={!isExistingChat}
+                            chatId={chatId}
+                            rateLimitWarning={
+                              rateLimitWarning ? rateLimitWarning : undefined
+                            }
+                            onDismissRateLimitWarning={
+                              handleDismissRateLimitWarning
+                            }
+                            contextUsage={contextUsage}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer - only show when user is not logged in */}
+                  <div className="flex-shrink-0">
+                    <Footer />
+                  </div>
+                </div>
+              )}
+
+              {/* Chat Input - Bottom placement (also for mobile new chats) */}
+              {(hasMessages || isExistingChat || isMobile) &&
+                !isChatNotFound && (
+                  <ChatInput
+                    onSubmit={handleSubmit}
+                    onStop={handleStop}
+                    onSendNow={handleSendNow}
+                    status={status}
+                    hasMessages={hasMessages}
+                    isAtBottom={isAtBottom}
+                    onScrollToBottom={handleScrollToBottom}
+                    isNewChat={!isExistingChat}
+                    chatId={chatId}
+                    rateLimitWarning={
+                      rateLimitWarning ? rateLimitWarning : undefined
+                    }
+                    onDismissRateLimitWarning={handleDismissRateLimitWarning}
+                    contextUsage={contextUsage}
+                  />
+                )}
+            </div>
+          </div>
+
+          {/* Desktop Computer Sidebar */}
+          {!isMobile && (
+            <div
+              className={`transition-[width] duration-300 min-w-0 ${
+                sidebarOpen ? "w-1/2 flex-shrink-0" : "w-0 overflow-hidden"
+              }`}
+            >
+              {sidebarOpen && (
+                <ComputerSidebar messages={messages} status={status} />
+              )}
+            </div>
+          )}
+
+          {/* Drag and Drop Overlay - covers main content area only (excludes sidebars) */}
+          <DragDropOverlay
+            isVisible={showDragOverlay}
+            isDragOver={isDragOver}
+          />
+        </div>
+
+        {/* Mobile Computer Sidebar */}
+        {isMobile && sidebarOpen && (
+          <div className="flex fixed inset-0 z-50 bg-background items-center justify-center p-4">
+            <div className="w-full max-w-4xl h-full">
+              <ComputerSidebar messages={messages} status={status} />
+            </div>
+          </div>
+        )}
+      </div>
+    </ConvexErrorBoundary>
+  );
+};

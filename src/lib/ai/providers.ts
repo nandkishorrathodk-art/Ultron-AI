@@ -1,0 +1,175 @@
+import { customProvider } from "ai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import type { ChatMode, SelectedModel } from "@/types/chat";
+import { isAgentMode } from "@/lib/utils/mode-helpers";
+// import { withTracing } from "@posthog/ai";
+// import PostHogClient from "@/app/posthog";
+// import type { SubscriptionTier } from "@/types";
+
+// Custom fetch that patches assistant tool-call messages for Kimi K2.5.
+// When reasoning mode is enabled, Kimi's API requires a `reasoning` field
+// on every assistant message with tool_calls, but the AI SDK doesn't always
+// include it (e.g. model made a tool call without emitting reasoning tokens).
+const kimiReasoningPatchFetch: typeof fetch = async (url, init) => {
+  if (init?.body && typeof init.body === "string") {
+    try {
+      const body = JSON.parse(init.body);
+      if (Array.isArray(body.messages) && body.reasoning?.enabled === true) {
+        for (const msg of body.messages) {
+          if (
+            msg.role === "assistant" &&
+            Array.isArray(msg.tool_calls) &&
+            msg.tool_calls.length > 0 &&
+            !msg.reasoning
+          ) {
+            msg.reasoning = ".";
+          }
+        }
+        init = { ...init, body: JSON.stringify(body) };
+      }
+    } catch {
+      // If parsing fails, send the request as-is
+    }
+  }
+  return globalThis.fetch(url, init);
+};
+
+const openrouter = createOpenRouter({ fetch: kimiReasoningPatchFetch });
+
+type OpenRouterInstance = typeof openrouter;
+
+const buildProviderMap = (or: OpenRouterInstance) =>
+  ({
+    "ask-model": or("google/gemini-3-flash-preview"),
+    "ask-model-free": or("deepseek/deepseek-v4-flash"),
+    "agent-model": or("moonshotai/kimi-k2.6:exacto"),
+    "agent-model-free": or("deepseek/deepseek-v4-flash"),
+    "model-sonnet-4.6": or("anthropic/claude-sonnet-4-6"),
+    "model-gemini-3-flash": or("google/gemini-3-flash-preview"),
+    "model-deepseek-v4-flash": or("deepseek/deepseek-v4-flash"),
+    "model-opus-4.6": or("anthropic/claude-opus-4.6"),
+    "model-kimi-k2.6": or("moonshotai/kimi-k2.6:exacto"),
+    "fallback-agent-model": or("google/gemini-3-flash-preview"),
+    "fallback-ask-model": or("google/gemini-3-flash-preview"),
+    "fallback-grok-4.3": or("x-ai/grok-4.3"),
+    "title-generator-model": or("google/gemini-2.5-flash-lite"),
+  }) as Record<string, any>;
+
+const baseProviders = buildProviderMap(openrouter);
+
+export type ModelName = keyof typeof baseProviders;
+
+export const modelCutoffDates: Record<ModelName, string> &
+  Record<string, string> = {
+  "ask-model": "January 2025",
+  "ask-model-free": "May 2025",
+  "agent-model": "April 2024",
+  "agent-model-free": "May 2025",
+  "model-sonnet-4.6": "May 2025",
+  "model-gemini-3-flash": "January 2025",
+  "model-deepseek-v4-flash": "May 2025",
+  "model-opus-4.6": "May 2025",
+  "model-kimi-k2.6": "April 2024",
+  "fallback-agent-model": "January 2025",
+  "fallback-ask-model": "January 2025",
+  "fallback-grok-4.3": "December 2025",
+  "title-generator-model": "January 2025",
+};
+
+export const modelDisplayNames: Record<ModelName, string> &
+  Record<string, string> = {
+  "ask-model": "Auto, an intelligent model router built by Ultron-AI",
+  "ask-model-free": "Auto, an intelligent model router built by Ultron-AI",
+  "agent-model": "Auto, an intelligent model router built by Ultron-AI",
+  "agent-model-free": "Auto, an intelligent model router built by Ultron-AI",
+  "model-sonnet-4.6": "Anthropic Claude Sonnet 4.6",
+  "model-gemini-3-flash": "Google Gemini 3 Flash",
+  "model-deepseek-v4-flash": "DeepSeek V4 Flash",
+  "model-opus-4.6": "Anthropic Claude Opus 4.6",
+  "model-kimi-k2.6": "Moonshot Kimi K2.6",
+  "fallback-agent-model": "Auto, an intelligent model router built by Ultron-AI",
+  "fallback-ask-model": "Auto, an intelligent model router built by Ultron-AI",
+  "fallback-grok-4.3": "Auto, an intelligent model router built by Ultron-AI",
+  "title-generator-model": "Google Gemini 2.5 Flash Lite",
+};
+
+export const getModelDisplayName = (modelName: ModelName): string => {
+  return modelDisplayNames[modelName];
+};
+
+export const getModelCutoffDate = (modelName: ModelName): string => {
+  return modelCutoffDates[modelName];
+};
+
+export function isAnthropicModel(modelName: string): boolean {
+  return modelName.includes("sonnet") || modelName.includes("opus");
+}
+
+export function isDeepSeekModel(modelName: string): boolean {
+  return (
+    modelName === "ask-model-free" ||
+    modelName === "agent-model-free" ||
+    modelName === "model-deepseek-v4-flash"
+  );
+}
+
+export function isGeminiModel(modelName: string): boolean {
+  return modelName === "ask-model" || modelName === "model-gemini-3-flash";
+}
+
+/**
+ * Map a Ultron-AI tier id to the underlying provider key for a given mode.
+ * Returns `null` for `"auto"` (the caller routes to the auto-router model
+ * key instead). The Pro/Max tiers map to the same model in both modes; only
+ * Lite differs (Gemini 3 Flash for ask, Kimi K2.6 for agent).
+ */
+export function resolveTierToProviderKey(
+  tier: SelectedModel,
+  mode: ChatMode,
+): ModelName | null {
+  if (tier === "auto") return null;
+  switch (tier) {
+    case "Ultron-AI-standard":
+      return isAgentMode(mode) ? "model-kimi-k2.6" : "model-gemini-3-flash";
+    case "Ultron-AI-pro":
+      return "model-sonnet-4.6";
+    case "Ultron-AI-max":
+      return "model-opus-4.6";
+  }
+}
+
+export const myProvider = customProvider({
+  languageModels: baseProviders,
+});
+
+export const createTrackedProvider = () =>
+  // userId?: string,
+  // conversationId?: string,
+  // subscription?: SubscriptionTier,
+  // phClient?: ReturnType<typeof PostHogClient> | null,
+  {
+    // PostHog provider tracking disabled
+    // if (!phClient || subscription === "free") {
+    //   return myProvider;
+    // }
+    //
+    // const trackedModels: Record<string, any> = {};
+    //
+    // Object.entries(baseProviders).forEach(([modelName, model]) => {
+    //   trackedModels[modelName] = withTracing(model, phClient, {
+    //     ...(userId && { posthogDistinctId: userId }),
+    //     posthogProperties: {
+    //       modelType: modelName,
+    //       ...(conversationId && { conversationId }),
+    //       subscriptionTier: subscription,
+    //     },
+    //     posthogPrivacyMode: true,
+    //   });
+    // });
+    //
+    // return customProvider({
+    //   languageModels: trackedModels,
+    // });
+
+    return myProvider;
+  };

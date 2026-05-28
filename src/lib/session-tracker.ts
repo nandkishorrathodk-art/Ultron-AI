@@ -1,5 +1,5 @@
 /**
- * ULTRON v3.0 — Session Tracker
+ * ULTRON v2.0 — Session Tracker
  *
  * Tracks all session activities: file changes, command history,
  * worklog entries, and agent (child) sessions.

@@ -48,7 +48,7 @@ export default function LoginPage() {
               <Shield className="w-8 h-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Ultron v3.0</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Ultron v2.0</h1>
           <p className="text-muted-foreground mt-2">Admin Authentication Required</p>
         </div>
 

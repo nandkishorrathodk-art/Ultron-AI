@@ -41,7 +41,7 @@ export function DesktopSimulator({ sessionId }: DesktopSimulatorProps) {
   const [chromeInputUrl, setChromeInputUrl] = useState("https://scanme.nmap.org");
   const [systemState, setSystemState] = useState<"IDLE" | "SCANNING" | "EXPLOITING">("IDLE");
   const [terminalOutput, setTerminalOutput] = useState<string[]>([
-    "Welcome to Ultron Security OS v3.0 (Debian stable)",
+    "Welcome to Ultron Security OS v2.0 (Debian stable)",
     "System initialized. Connection to coordinator established.",
     "root@e2b-sandbox:~# whoami",
     "root",

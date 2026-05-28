@@ -1,0 +1,498 @@
+"use client";
+
+import { Brain, Check, ChevronDown, ChevronRight, Lock } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
+import type { ChatMode, SelectedModel } from "@/types/chat";
+import { isAgentMode } from "@/lib/utils/mode-helpers";
+import { useGlobalState } from "@/app/contexts/GlobalState";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+import { CostIndicator } from "./ModelSelector/CostIndicator";
+import {
+  ASK_MODEL_OPTIONS,
+  AGENT_MODEL_OPTIONS,
+  getDefaultModelForMode,
+  type ModelOption,
+} from "./ModelSelector/constants";
+import {
+  dismissProMaxUsageNotice,
+  isProMaxUsageNoticeDismissed,
+} from "@/lib/utils/pro-max-notice-cookie";
+
+// ── Shared sub-components ──────────────────────────────────────────
+
+interface ModelSelectorProps {
+  value: SelectedModel;
+  onChange: (model: SelectedModel) => void;
+  mode: ChatMode;
+}
+
+const SwitchRow = ({
+  label,
+  description,
+  checked,
+  onToggle,
+  ariaLabel,
+  mobile = false,
+}: {
+  label: string;
+  description?: string;
+  checked: boolean;
+  onToggle: (checked: boolean) => void;
+  ariaLabel: string;
+  mobile?: boolean;
+}) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle(!checked);
+    }
+  };
+
+  return (
+    <div
+      role="button"
+      onClick={() => onToggle(!checked)}
+      onKeyDown={handleKeyDown}
+      className={`group w-full flex items-center gap-2.5 px-2.5 rounded-lg text-left transition-colors select-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring hover:bg-muted/50 ${
+        mobile ? "py-2.5" : "py-2"
+      }`}
+      aria-label={ariaLabel}
+      tabIndex={0}
+    >
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        {description && (
+          <p className="text-xs text-muted-foreground leading-snug mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onToggle}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        aria-label={ariaLabel}
+        className="shrink-0"
+      />
+    </div>
+  );
+};
+
+const AutoToggle = ({
+  isAuto,
+  onToggle,
+  mobile = false,
+}: {
+  isAuto: boolean;
+  onToggle: (checked: boolean) => void;
+  mobile?: boolean;
+}) => (
+  <SwitchRow
+    label="Auto"
+    description={
+      isAuto
+        ? "Balanced quality and speed, recommended for most tasks"
+        : undefined
+    }
+    checked={isAuto}
+    onToggle={onToggle}
+    ariaLabel="Toggle auto model selection"
+    mobile={mobile}
+  />
+);
+
+const ModelOptionButton = ({
+  option,
+  isSelected,
+  isFreeUser,
+  onSelect,
+  mode,
+  mobile = false,
+}: {
+  option: ModelOption;
+  isSelected: boolean;
+  isFreeUser: boolean;
+  onSelect: (option: ModelOption) => void;
+  mode: ChatMode;
+  mobile?: boolean;
+}) => {
+  const button = (
+    <button
+      type="button"
+      onClick={() => onSelect(option)}
+      aria-pressed={isSelected}
+      className={`group w-full flex items-center gap-2.5 px-2.5 rounded-lg text-left transition-colors select-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+        mobile ? "py-2.5" : "py-1.5"
+      } ${isSelected ? "bg-accent" : "hover:bg-muted/50 active:bg-muted/50"}`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`text-sm transition-colors ${
+              isSelected
+                ? "text-accent-foreground"
+                : "text-muted-foreground group-hover:text-foreground"
+            }`}
+          >
+            {option.label}
+          </span>
+          {option.thinking && (
+            <Brain className="h-3 w-3 text-muted-foreground/60" />
+          )}
+          {option.id !== "auto" && (
+            <CostIndicator modelId={option.id} mode={mode} />
+          )}
+        </div>
+      </div>
+      {isFreeUser ? (
+        <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+      ) : isSelected ? (
+        <Check className="h-3.5 w-3.5 shrink-0" />
+      ) : null}
+    </button>
+  );
+
+  // Free users get the upgrade tooltip from the parent ModelOptionList; skipping
+  // the inner one prevents a flicker where both nested tooltips race to render.
+  if (mobile || !option.description || isFreeUser) return button;
+
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        sideOffset={12}
+        align="start"
+        className="bg-popover text-popover-foreground border border-border shadow-lg rounded-xl px-4 py-3 max-w-[240px] space-y-1.5 [&_svg]:!hidden"
+      >
+        <p className="text-sm font-semibold text-foreground leading-snug">
+          {option.description}
+        </p>
+        {option.poweredBy && (
+          <p className="text-xs text-muted-foreground">
+            Powered by {option.poweredBy}
+          </p>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  );
+};
+
+// ── Model option list ──────────────────────────────────────────────
+
+const ModelOptionList = ({
+  options,
+  value,
+  isAuto,
+  isFreeUser,
+  mode,
+  onAutoToggle,
+  onSelect,
+  onClose,
+  mobile = false,
+}: {
+  options: ModelOption[];
+  value: SelectedModel;
+  isAuto: boolean;
+  isFreeUser: boolean;
+  mode: ChatMode;
+  onAutoToggle: (checked: boolean) => void;
+  onSelect: (option: ModelOption) => void;
+  onClose: () => void;
+  mobile?: boolean;
+}) => (
+  <div className="flex flex-col gap-px">
+    {isFreeUser ? (
+      <>
+        <a
+          href="#pricing"
+          onClick={() => onClose()}
+          className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-2 transition-colors hover:bg-primary/20 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span className="text-sm font-semibold text-foreground">
+            Get access to the top AI models
+          </span>
+          <ChevronRight className="h-4 w-4 text-primary shrink-0" />
+        </a>
+        <div className="my-1.5 border-b border-border/50" />
+      </>
+    ) : (
+      <AutoToggle isAuto={isAuto} onToggle={onAutoToggle} mobile={mobile} />
+    )}
+
+    {(!isAuto || isFreeUser) && (
+      <>
+        {!isFreeUser && <div className="my-1 border-b border-border/50" />}
+        {options.map((option) => {
+          const isSelected = value === option.id;
+          const showUpgradeTooltip = isFreeUser && !mobile;
+
+          if (!showUpgradeTooltip) {
+            return (
+              <div key={option.id}>
+                <ModelOptionButton
+                  option={option}
+                  isSelected={isSelected}
+                  isFreeUser={isFreeUser}
+                  onSelect={onSelect}
+                  mode={mode}
+                  mobile={mobile}
+                />
+              </div>
+            );
+          }
+
+          return (
+            <Tooltip key={option.id}>
+              <TooltipTrigger asChild>
+                <div>
+                  <ModelOptionButton
+                    option={option}
+                    isSelected={isSelected}
+                    isFreeUser={isFreeUser}
+                    onSelect={onSelect}
+                    mode={mode}
+                    mobile={mobile}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                sideOffset={12}
+                align="start"
+                className="bg-popover text-popover-foreground border border-border shadow-lg rounded-xl px-4 py-3 max-w-[240px] space-y-1.5 [&_svg]:!hidden"
+              >
+                {option.description ? (
+                  <p className="text-sm font-semibold text-foreground leading-snug">
+                    {option.description}
+                  </p>
+                ) : (
+                  <p className="text-sm font-semibold text-foreground leading-snug">
+                    {option.label}
+                  </p>
+                )}
+                {option.poweredBy && (
+                  <p className="text-xs text-muted-foreground">
+                    Powered by {option.poweredBy}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                  <a
+                    href="#pricing"
+                    onClick={() => onClose()}
+                    className="text-foreground underline underline-offset-2 hover:text-foreground/80"
+                    tabIndex={0}
+                  >
+                    Upgrade your plan
+                  </a>{" "}
+                  to unlock.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </>
+    )}
+  </div>
+);
+
+// ── Main component ─────────────────────────────────────────────────
+
+export function ModelSelector({ value, onChange, mode }: ModelSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const [pendingProMaxNotice, setPendingProMaxNotice] =
+    useState<ModelOption | null>(null);
+  const { subscription } = useGlobalState();
+  const isMobile = useIsMobile();
+
+  const isAuto = value === "auto";
+  const isFreeUser = subscription === "free";
+  /** Base Pro tier: Max is flagged as unusually heavy usage vs higher plans. */
+  const isBaseProTier = subscription === "pro";
+
+  const options = isAgentMode(mode) ? AGENT_MODEL_OPTIONS : ASK_MODEL_OPTIONS;
+
+  const effectiveValue = isAuto ? getDefaultModelForMode(mode) : value;
+  const selected =
+    options.find((opt) => opt.id === effectiveValue) ?? options[0];
+
+  const isFreeAgent = isFreeUser && isAgentMode(mode);
+  const triggerLabel = isFreeAgent
+    ? "Auto"
+    : isFreeUser
+      ? "Model"
+      : isAuto
+        ? "Auto"
+        : selected.label;
+
+  const handleAutoToggle = (checked: boolean) => {
+    if (isFreeUser) {
+      window.location.hash = "pricing";
+      setOpen(false);
+      return;
+    }
+    onChange(checked ? "auto" : getDefaultModelForMode(mode));
+  };
+
+  const applyModelChoice = (option: ModelOption) => {
+    onChange(option.id);
+    setOpen(false);
+  };
+
+  const handleModelSelect = (option: ModelOption) => {
+    if (isFreeUser) {
+      window.location.hash = "pricing";
+      setOpen(false);
+      return;
+    }
+
+    if (
+      isBaseProTier &&
+      option.id === "Ultron-AI-max" &&
+      !isProMaxUsageNoticeDismissed()
+    ) {
+      setPendingProMaxNotice(option);
+      return;
+    }
+
+    applyModelChoice(option);
+  };
+
+  const handleDismissProMaxNotice = () => {
+    setPendingProMaxNotice(null);
+  };
+
+  const handleConfirmProMax = () => {
+    if (!pendingProMaxNotice) return;
+    dismissProMaxUsageNotice();
+    applyModelChoice(pendingProMaxNotice);
+    setPendingProMaxNotice(null);
+  };
+
+  const trigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={isMobile ? () => setOpen(true) : undefined}
+      aria-expanded={isMobile ? open : undefined}
+      aria-haspopup={isMobile ? "dialog" : undefined}
+      className="h-7 px-2 gap-1 text-sm font-medium rounded-md bg-transparent hover:bg-muted/30 focus-visible:ring-1 min-w-0 shrink"
+    >
+      <span className="truncate">{triggerLabel}</span>
+      <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
+    </Button>
+  );
+
+  const maxUsageNoticeDialog = (
+    <AlertDialog
+      open={pendingProMaxNotice !== null}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) handleDismissProMaxNotice();
+      }}
+    >
+      <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Higher usage</AlertDialogTitle>
+          <AlertDialogDescription className="text-left">
+            Ultron-AI Max uses quota much faster than Standard or Pro. One long
+            task can use much of what&apos;s included on Pro.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleDismissProMaxNotice}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmProMax}>
+            Continue
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {trigger}
+        {maxUsageNoticeDialog}
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent
+            side="bottom"
+            className="rounded-t-2xl px-3 pb-8 pt-0 overscroll-contain"
+          >
+            <SheetHeader className="pb-1 pt-4">
+              <SheetTitle className="text-base">Select Model</SheetTitle>
+              <SheetDescription className="sr-only">
+                Choose a model
+              </SheetDescription>
+            </SheetHeader>
+            <ModelOptionList
+              options={options}
+              value={effectiveValue}
+              isAuto={isAuto}
+              isFreeUser={isFreeUser}
+              mode={mode}
+              onAutoToggle={handleAutoToggle}
+              onSelect={handleModelSelect}
+              onClose={() => setOpen(false)}
+              mobile
+            />
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {maxUsageNoticeDialog}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent className="w-[270px] p-1.5 rounded-xl" align="start">
+          <ModelOptionList
+            options={options}
+            value={effectiveValue}
+            isAuto={isAuto}
+            isFreeUser={isFreeUser}
+            mode={mode}
+            onAutoToggle={handleAutoToggle}
+            onSelect={handleModelSelect}
+            onClose={() => setOpen(false)}
+          />
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+}

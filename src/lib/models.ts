@@ -1,5 +1,5 @@
 /**
- * ULTRON v3.0 — Model Roster & Fallback Chain
+ * ULTRON v2.0 — Model Roster & Fallback Chain
  * Per-agent LLM assignment with runtime switching support.
  *
  * Based on PentAGI v1.2 GitHub (April 2026) production-tested models.
