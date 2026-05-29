@@ -13,7 +13,7 @@
  */
 
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText, tool } from "ai";
+import { streamText, tool, stepCountIs } from "ai";
 import { z } from "zod";
 import {
   getOrCreateSandbox,
@@ -803,8 +803,7 @@ export async function POST(req: Request) {
           model: provider.chat(modelConfig.model),
           system: SYSTEM_PROMPT,
           messages: cleanMessages,
-          // @ts-ignore — maxSteps works at runtime but types don't include it in this SDK version
-          maxSteps: 8, // v2: increased from 5 → 8 for deeper autonomous chains
+          stopWhen: stepCountIs(8),
           tools: buildTools(activeSession),
           // Return session ID in headers so frontend can persist it
           onFinish: () => {

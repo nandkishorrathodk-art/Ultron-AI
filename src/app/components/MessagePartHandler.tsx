@@ -188,7 +188,9 @@ export const MessagePartHandler = memo(function MessagePartHandler({
     case "data-terminal":
     case "tool-shell":
     case "tool-run_terminal_cmd":
-    case "tool-interact_terminal_session": {
+    case "tool-interact_terminal_session":
+    case "tool-execute_bash":
+    case "tool-install_tool": {
       const effectiveToolCallId =
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part as any).data?.toolCallId ?? part.toolCallId;
