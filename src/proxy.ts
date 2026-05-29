@@ -51,6 +51,7 @@ function isBrowserRequest(request: NextRequest): boolean {
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ||
+    process.env.SESSION_SECRET ||
     process.env.AUTH_SECRET ||
     "ultron-ai-default-secret-change-in-production",
 );
@@ -70,7 +71,7 @@ export default async function proxy(request: NextRequest) {
 
   // Extract JWT token
   const token =
-    request.cookies.get("ultron-session")?.value ||
+    request.cookies.get("ultron_session")?.value ||
     request.headers.get("authorization")?.replace("Bearer ", "");
 
   if (!token) {
@@ -132,7 +133,7 @@ export default async function proxy(request: NextRequest) {
           { status: 401 },
         );
 
-    response.cookies.delete("ultron-session");
+    response.cookies.delete("ultron_session");
     return addSecurityHeaders(response);
   }
 }
