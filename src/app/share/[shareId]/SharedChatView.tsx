@@ -19,6 +19,7 @@ import { ChatInput } from "@/app/components/ChatInput";
 import { upsertDraft } from "@/lib/utils/client-storage";
 
 // Desktop wrapper component that connects ComputerSidebarBase to SharedChatContext
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SharedComputerSidebarDesktop({ messages }: { messages: any[] }) {
   const { sidebarOpen, sidebarContent, closeSidebar, openSidebar } =
     useSharedChatContext();
@@ -43,6 +44,7 @@ function SharedComputerSidebarDesktop({ messages }: { messages: any[] }) {
 }
 
 // Mobile wrapper component for full-screen sidebar overlay
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SharedComputerSidebarMobile({ messages }: { messages: any[] }) {
   const { sidebarOpen, sidebarContent, closeSidebar, openSidebar } =
     useSharedChatContext();

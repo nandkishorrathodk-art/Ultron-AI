@@ -57,12 +57,15 @@ export type WebSource = {
  * and flexible output shapes: array, { result: [] }, or { results: [] }.
  */
 export const extractWebSourcesFromMessage = (message: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts?: Array<any>;
 }): Array<WebSource> => {
   const sources: Array<WebSource> = [];
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parts: Array<any> = Array.isArray((message as any)?.parts)
-    ? (message as any).parts
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (message as any).parts
     : [];
 
   for (const part of parts) {
@@ -70,6 +73,7 @@ export const extractWebSourcesFromMessage = (message: {
       if (part.state !== "output-available") continue;
       const output = part.output;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let results: any = undefined;
       if (Array.isArray(output)) {
         results = output;

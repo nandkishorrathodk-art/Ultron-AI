@@ -1,8 +1,22 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from "react";
-import { Terminal, Server, ShieldAlert, Cpu, RefreshCw, Layers } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Terminal,
+  Server,
+  ShieldAlert,
+  Cpu,
+  RefreshCw,
+  Layers,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
@@ -57,16 +71,20 @@ export default function SandboxPage() {
             <Terminal className="w-6 h-6 text-primary" />
             Agent Sandbox Monitor
           </h1>
-          <p className="text-sm text-muted-foreground">Monitor and manage active E2B micro-VM instances in real-time.</p>
+          <p className="text-sm text-muted-foreground">
+            Monitor and manage active E2B micro-VM instances in real-time.
+          </p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className="gap-2 border-primary/20 hover:bg-primary/10"
           onClick={() => fetchSandboxes(false)}
           disabled={loading || refreshing}
         >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
+          />
           Refresh
         </Button>
       </header>
@@ -95,7 +113,9 @@ export default function SandboxPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{sandboxes.length > 0 ? "12%" : "0%"}</div>
+                <div className="text-3xl font-bold">
+                  {sandboxes.length > 0 ? "12%" : "0%"}
+                </div>
               </CardContent>
             </Card>
 
@@ -115,7 +135,9 @@ export default function SandboxPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-sm text-muted-foreground">Loading active sandbox instances...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading active sandbox instances...
+              </p>
             </div>
           ) : sandboxes.length === 0 ? (
             /* Empty State */
@@ -126,22 +148,33 @@ export default function SandboxPage() {
               <div>
                 <h3 className="font-semibold text-lg">No Active Sandboxes</h3>
                 <p className="text-sm text-muted-foreground max-w-md mt-1">
-                  There are no running E2B micro-VM instances right now. Start a new pentest session in the chat to spin up a persistent, secure Debian container!
+                  There are no running E2B micro-VM instances right now. Start a
+                  new pentest session in the chat to spin up a persistent,
+                  secure Debian container!
                 </p>
               </div>
             </Card>
           ) : (
             /* Active Sandboxes List */
             sandboxes.map((box) => (
-              <Card key={box.sessionId} className="border-primary/20 bg-background/50 backdrop-blur-md">
+              <Card
+                key={box.sessionId}
+                className="border-primary/20 bg-background/50 backdrop-blur-md"
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="font-mono text-base flex items-center gap-2">
-                        <span className="text-primary">Session:</span> {box.sessionId.substring(0, 15)}...
+                        <span className="text-primary">Session:</span>{" "}
+                        {box.sessionId.substring(0, 15)}...
                       </CardTitle>
                       <CardDescription className="font-mono text-xs mt-1">
-                        E2B VM ID: <span className="text-muted-foreground">{box.sandboxId}</span> • Age: {Math.floor(box.ageSeconds / 60)}m {box.ageSeconds % 60}s
+                        E2B VM ID:{" "}
+                        <span className="text-muted-foreground">
+                          {box.sandboxId}
+                        </span>{" "}
+                        • Age: {Math.floor(box.ageSeconds / 60)}m{" "}
+                        {box.ageSeconds % 60}s
                       </CardDescription>
                     </div>
                     <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-green-500 border-green-500 bg-green-500/10">
@@ -158,9 +191,15 @@ export default function SandboxPage() {
                       </div>
                     ) : (
                       box.logs.map((log, index) => (
-                        <div key={index} className="border-b border-muted/20 pb-3 last:border-0 last:pb-0">
+                        <div
+                          key={index}
+                          className="border-b border-muted/20 pb-3 last:border-0 last:pb-0"
+                        >
                           <p className="text-blue-400 flex items-center gap-2">
-                            <span className="text-primary font-bold">root@e2b-sandbox:~#</span> {log.command}
+                            <span className="text-primary font-bold">
+                              root@e2b-sandbox:~#
+                            </span>{" "}
+                            {log.command}
                           </p>
                           <pre className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed pl-4">
                             {log.output}

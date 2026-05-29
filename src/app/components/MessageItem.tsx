@@ -196,8 +196,11 @@ export const MessageItem = memo(function MessageItem({
   const terminalOutputByToolCallId = useMemo(() => {
     const map = new Map<string, string>();
     message.parts.forEach((p) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (p.type === "data-terminal" && (p as any).data?.toolCallId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const id = (p as any).data.toolCallId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const terminal = (p as any).data?.terminal || "";
         map.set(id, (map.get(id) || "") + terminal);
       }
@@ -249,6 +252,7 @@ export const MessageItem = memo(function MessageItem({
   const webSources = useMemo(() => {
     if (isUser) return [];
     if (isLastAssistantMessage && status === "streaming") return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return extractWebSourcesFromMessage(message as any);
   }, [isUser, isLastAssistantMessage, status, message]);
 

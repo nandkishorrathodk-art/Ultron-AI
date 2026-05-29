@@ -23,6 +23,7 @@ describe("UsageRefundTracker", () => {
         refundUsage: mockRefundUsage,
       }));
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       isolatedModule = require("../refund");
     });
 

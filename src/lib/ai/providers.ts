@@ -53,6 +53,7 @@ const buildProviderMap = (or: OpenRouterInstance) =>
     "fallback-ask-model": or("google/gemini-3-flash-preview"),
     "fallback-grok-4.3": or("x-ai/grok-4.3"),
     "title-generator-model": or("google/gemini-2.5-flash-lite"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as Record<string, any>;
 
 const baseProviders = buildProviderMap(openrouter);
@@ -87,7 +88,8 @@ export const modelDisplayNames: Record<ModelName, string> &
   "model-deepseek-v4-flash": "DeepSeek V4 Flash",
   "model-opus-4.6": "Anthropic Claude Opus 4.6",
   "model-kimi-k2.6": "Moonshot Kimi K2.6",
-  "fallback-agent-model": "Auto, an intelligent model router built by Ultron-AI",
+  "fallback-agent-model":
+    "Auto, an intelligent model router built by Ultron-AI",
   "fallback-ask-model": "Auto, an intelligent model router built by Ultron-AI",
   "fallback-grok-4.3": "Auto, an intelligent model router built by Ultron-AI",
   "title-generator-model": "Google Gemini 2.5 Flash Lite",

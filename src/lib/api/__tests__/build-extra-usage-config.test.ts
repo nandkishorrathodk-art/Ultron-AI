@@ -47,6 +47,7 @@ describe("buildExtraUsageConfig — free tier", () => {
     const config = await buildExtraUsageConfig({
       userId: USER_ID,
       subscription: "free",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userCustomization: { extra_usage_enabled: true } as any,
     });
     expect(config).toBeUndefined();
@@ -69,6 +70,7 @@ describe("buildExtraUsageConfig — team users", () => {
       userId: USER_ID,
       subscription: "team",
       // Personal flag is explicitly OFF — team pool should still be used.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userCustomization: { extra_usage_enabled: false } as any,
       organizationId: ORG_ID,
     });
@@ -192,6 +194,7 @@ describe("buildExtraUsageConfig — individual paid users (pro / pro-plus / ultr
     const config = await buildExtraUsageConfig({
       userId: USER_ID,
       subscription: "pro",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userCustomization: { extra_usage_enabled: false } as any,
     });
     expect(config).toBeUndefined();
@@ -210,6 +213,7 @@ describe("buildExtraUsageConfig — individual paid users (pro / pro-plus / ultr
     const config = await buildExtraUsageConfig({
       userId: USER_ID,
       subscription: "pro",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userCustomization: { extra_usage_enabled: true } as any,
     });
 
@@ -228,6 +232,7 @@ describe("buildExtraUsageConfig — individual paid users (pro / pro-plus / ultr
     const config = await buildExtraUsageConfig({
       userId: USER_ID,
       subscription: "ultra",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userCustomization: { extra_usage_enabled: true } as any,
     });
     expect(config).toEqual({

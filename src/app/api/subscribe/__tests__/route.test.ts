@@ -77,6 +77,7 @@ function makeRequest(body: Record<string, unknown> = {}) {
     headers: {
       get: jest.fn().mockReturnValue(null),
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 

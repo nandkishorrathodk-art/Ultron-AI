@@ -17,6 +17,7 @@ interface FileInput {
 }
 
 interface FileHandlerProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
 }

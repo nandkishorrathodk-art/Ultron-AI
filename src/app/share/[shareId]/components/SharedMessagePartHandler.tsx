@@ -46,7 +46,9 @@ interface MessagePart {
   text?: string;
   placeholder?: boolean;
   state?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any;
   toolCallId?: string;
   errorText?: string;
@@ -808,6 +810,7 @@ function renderReasoningPart(parts: MessagePart[], partIndex: number) {
 
 // Summarization status renderer
 function renderSummarizationPart(part: MessagePart, idx: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = (part as any).data as { status?: string; message?: string };
 
   return (

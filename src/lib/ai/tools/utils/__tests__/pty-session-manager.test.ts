@@ -253,6 +253,7 @@ describe("PtySessionManager", () => {
       // Session still accessible — not removed
       expect(manager.get("chat-1", session.sessionId)).toBe(session);
       // But marked as exited
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((session as any).exitedNaturally).toEqual({ exitCode: 0 });
     });
   });

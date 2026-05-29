@@ -399,6 +399,7 @@ export async function runSummarizationStep(options: {
  */
 export class SummarizationTracker {
   hasSummarized = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private parts: UIMessagePart<any, any>[] = [];
   private atStep: number | undefined;
 
@@ -432,6 +433,7 @@ export class SummarizationTracker {
    * position (before the step-start for the step where summarization happened).
    * Returns the original message unchanged if no summarization occurred.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   processMessageForSave<T extends { role: string; parts: any[] }>(
     message: T,
   ): T {

@@ -8,6 +8,7 @@ import {
 } from "../constants";
 import { MAX_TOKENS_PAID, safeCountTokens } from "@/lib/token-utils";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockGenerateText = jest.fn<() => Promise<any>>();
 const mockSaveChatSummary = jest.fn<() => Promise<void>>();
 
@@ -26,8 +27,10 @@ jest.doMock("@/lib/ai/providers", () => ({
 }));
 
 const { checkAndSummarizeIfNeeded } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("../index") as typeof import("../index");
 const { isSummaryMessage, extractSummaryText, buildSummaryMessage } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("../helpers") as typeof import("../helpers");
 
 const THRESHOLD = Math.floor(
@@ -963,6 +966,7 @@ describe("isSummaryMessage and extractSummaryText", () => {
 
 describe("splitMessages with MESSAGES_TO_KEEP_UNSUMMARIZED = 0", () => {
   const { splitMessages } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require("../helpers") as typeof import("../helpers");
 
   it("should return all messages as messagesToSummarize when constant is 0", () => {

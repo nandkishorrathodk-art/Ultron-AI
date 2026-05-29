@@ -8,6 +8,7 @@ import { isUserStoppedToolError } from "@/lib/chat/tool-abort-utils";
 
 interface TodoToolHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
 }

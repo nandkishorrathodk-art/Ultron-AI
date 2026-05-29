@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MessageSquare, Settings, Terminal, Shield, PlusCircle } from "lucide-react";
+import {
+  MessageSquare,
+  Settings,
+  Terminal,
+  Shield,
+  PlusCircle,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -43,8 +49,9 @@ export function AppSidebar() {
         .then((res) => res.json())
         .then((data) => {
           const activeSbs = data.sandboxes ?? [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const sessionIds = activeSbs.map((sb: any) => sb.sessionId);
-          
+
           // Merge with stored sessions from localStorage for persistence
           const stored = localStorage.getItem("ultron_recent_scans");
           let scans = sessionIds;
@@ -57,7 +64,7 @@ export function AppSidebar() {
               console.error(e);
             }
           }
-          
+
           // Limit to last 5 scans
           const trimmed = scans.slice(0, 5);
           setRecentScans(trimmed);
@@ -87,7 +94,7 @@ export function AppSidebar() {
           <span>Ultron</span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
@@ -104,7 +111,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        
+
         <SidebarGroup>
           <SidebarGroupLabel>Recent Scans</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -116,10 +123,14 @@ export function AppSidebar() {
               ) : (
                 recentScans.map((scan) => (
                   <SidebarMenuItem key={scan}>
-                    <SidebarMenuButton render={<a href={`/?sessionId=${scan}`} />}>
+                    <SidebarMenuButton
+                      render={<a href={`/?sessionId=${scan}`} />}
+                    >
                       <MessageSquare className="w-4 h-4 mr-2 text-primary/70 shrink-0" />
                       <span className="truncate font-mono text-xs">
-                        {scan.startsWith("session_") ? scan.replace("session_", "Session ") : scan}
+                        {scan.startsWith("session_")
+                          ? scan.replace("session_", "Session ")
+                          : scan}
                       </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -129,7 +140,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
+
       <SidebarFooter className="p-4 border-t text-sm text-muted-foreground text-center">
         Ultron v2.0
       </SidebarFooter>

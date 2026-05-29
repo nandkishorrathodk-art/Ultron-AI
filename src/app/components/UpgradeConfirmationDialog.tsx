@@ -161,6 +161,7 @@ const UpgradeConfirmationDialog: React.FC<UpgradeConfirmationDialogProps> = ({
   };
 
   const proratedCredit = details?.proratedCredit || 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const additionalCredit = (details as any)?.additionalCredit || 0;
   const totalDue = details?.totalDue ?? price;
 

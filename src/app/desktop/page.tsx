@@ -1,7 +1,14 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
-import { Monitor, Maximize2, ZoomIn, ZoomOut, MousePointer } from "lucide-react";
+import {
+  Monitor,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  MousePointer,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DesktopSimulator } from "@/components/DesktopSimulator";
@@ -88,7 +95,9 @@ export default function DesktopPage() {
     if (!selectedSandbox) return;
     setLaunching(true);
     try {
-      const res = await fetch(`/api/desktop/stream?sessionId=${selectedSandbox}&init=true`);
+      const res = await fetch(
+        `/api/desktop/stream?sessionId=${selectedSandbox}&init=true`,
+      );
       const data = await res.json();
       if (data.success && data.streamUrl) {
         setStreamUrl(data.streamUrl);
@@ -108,14 +117,26 @@ export default function DesktopPage() {
             <Monitor className="w-6 h-6 text-primary" />
             Desktop
           </h1>
-          <p className="text-sm text-muted-foreground">Watch and control Ultron&apos;s Desktop environment.</p>
+          <p className="text-sm text-muted-foreground">
+            Watch and control Ultron&apos;s Desktop environment.
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setZoom(Math.max(50, zoom - 10))}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom(Math.max(50, zoom - 10))}
+          >
             <ZoomOut className="w-4 h-4" />
           </Button>
-          <span className="text-xs text-muted-foreground w-12 text-center">{zoom}%</span>
-          <Button variant="outline" size="sm" onClick={() => setZoom(Math.min(150, zoom + 10))}>
+          <span className="text-xs text-muted-foreground w-12 text-center">
+            {zoom}%
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setZoom(Math.min(150, zoom + 10))}
+          >
             <ZoomIn className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setZoom(100)}>
@@ -127,27 +148,36 @@ export default function DesktopPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sandbox Selector Sidebar */}
         <div className="w-64 border-r bg-card/30 p-4 shrink-0 overflow-y-auto">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">Active VMs</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+            Active VMs
+          </h3>
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : sandboxes.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No active sandboxes. Start a pentest session first.</p>
+            <p className="text-xs text-muted-foreground">
+              No active sandboxes. Start a pentest session first.
+            </p>
           ) : (
             <div className="space-y-2">
               {sandboxes.map((sb) => (
                 <Card
                   key={sb.sessionId}
                   className={`cursor-pointer transition-colors ${
-                    selectedSandbox === sb.sessionId ? "border-primary bg-primary/10" : "border-muted hover:border-primary/30"
+                    selectedSandbox === sb.sessionId
+                      ? "border-primary bg-primary/10"
+                      : "border-muted hover:border-primary/30"
                   }`}
                   onClick={() => setSelectedSandbox(sb.sessionId)}
                 >
                   <CardContent className="p-3">
-                    <p className="font-mono text-xs truncate">{sb.sessionId.substring(0, 12)}...</p>
+                    <p className="font-mono text-xs truncate">
+                      {sb.sessionId.substring(0, 12)}...
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      VM: {sb.sandboxId.substring(0, 8)} • {Math.floor(sb.ageSeconds / 60)}m ago
+                      VM: {sb.sandboxId.substring(0, 8)} •{" "}
+                      {Math.floor(sb.ageSeconds / 60)}m ago
                     </p>
                     <div className="flex items-center gap-1 mt-1">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -166,9 +196,13 @@ export default function DesktopPage() {
             <div className="w-full max-w-5xl flex flex-col gap-4">
               <div className="flex justify-between items-center bg-card/40 p-3 rounded-lg border border-border/60 shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2.5 h-2.5 rounded-full ${streamUrl ? 'bg-green-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full ${streamUrl ? "bg-green-500 animate-pulse" : "bg-amber-500 animate-pulse"}`}
+                  />
                   <span className="text-xs md:text-sm font-medium">
-                    {streamUrl ? "Streaming Live E2B GUI Desktop" : "Simulated UI (Spawn a real E2B Desktop VM to stream below)"}
+                    {streamUrl
+                      ? "Streaming Live E2B GUI Desktop"
+                      : "Simulated UI (Spawn a real E2B Desktop VM to stream below)"}
                   </span>
                 </div>
                 {!streamUrl && (
@@ -191,7 +225,10 @@ export default function DesktopPage() {
               </div>
               <div
                 className="w-full aspect-video rounded-lg overflow-hidden relative border border-border/80 shadow-2xl bg-black"
-                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+                style={{
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: "top center",
+                }}
               >
                 {streamUrl ? (
                   <iframe
@@ -212,7 +249,8 @@ export default function DesktopPage() {
               <div>
                 <h3 className="font-semibold text-lg">No Active Desktop</h3>
                 <p className="text-sm text-muted-foreground max-w-md mt-1">
-                  Start a pentest session to access Ultron&apos;s desktop environment. Select a VM from the sidebar to view its desktop.
+                  Start a pentest session to access Ultron&apos;s desktop
+                  environment. Select a VM from the sidebar to view its desktop.
                 </p>
               </div>
             </Card>

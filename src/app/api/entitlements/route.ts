@@ -35,10 +35,12 @@ export async function GET(req: NextRequest) {
     let organizationId: string | undefined;
     if (authResult.authenticated) {
       // Check if organizationId is already available in the session
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       organizationId = (authResult as any).organizationId;
 
       // If organizationId is not in session, fetch it using userId
       if (!organizationId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const userId = (authResult as any).user?.id;
 
         if (userId) {
@@ -74,6 +76,7 @@ export async function GET(req: NextRequest) {
       ? await session.refresh({ organizationId })
       : await session.refresh();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { sealedSession, entitlements } = refreshResult as any;
 
     const allEntitlements = parseEntitlements(entitlements);

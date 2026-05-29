@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const */
 /**
  * Parsing Module v2.0 — LLM-Powered Structured Output Parsing
  * ═══════════════════════════════════════════════════════════════
@@ -30,7 +31,11 @@ export interface ParseResult {
  * This runs first — fast and deterministic.
  * Falls through to LLM parsing for unknown formats.
  */
-function patternParse(command: string, stdout: string, stderr: string): Finding[] {
+function patternParse(
+  command: string,
+  stdout: string,
+  stderr: string,
+): Finding[] {
   const findings: Finding[] = [];
   const combined = `${stdout}\n${stderr}`;
 
@@ -42,7 +47,8 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
       findings.push({
         type: "open_port",
         severity: "info",
-        description: `Port ${match[1]}/tcp open — ${match[2]} ${match[3]}`.trim(),
+        description:
+          `Port ${match[1]}/tcp open — ${match[2]} ${match[3]}`.trim(),
         raw_output: match[0],
         cve_ids: [],
         cvss_score: 0,
@@ -90,7 +96,7 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
   if (command.includes("nuclei")) {
     // Nuclei output: [severity] [template-id] [protocol] url
     const nucleiMatches = combined.matchAll(
-      /\[(info|low|medium|high|critical)\]\s+\[([^\]]+)\]\s+\[([^\]]+)\]\s+(.+)/gi
+      /\[(info|low|medium|high|critical)\]\s+\[([^\]]+)\]\s+\[([^\]]+)\]\s+(.+)/gi,
     );
     for (const match of nucleiMatches) {
       const severity = match[1].toLowerCase() as Finding["severity"];
@@ -112,7 +118,7 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
   // ── nikto parsing ─────────────────────────────────────────
   if (command.includes("nikto")) {
     const niktoMatches = combined.matchAll(
-      /\+\s+(OSVDB-\d+|CVE-\d{4}-\d+):\s*(.+)/g
+      /\+\s+(OSVDB-\d+|CVE-\d{4}-\d+):\s*(.+)/g,
     );
     for (const match of niktoMatches) {
       findings.push({
@@ -130,10 +136,14 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
   }
 
   // ── gobuster / ffuf / dirsearch ───────────────────────────
-  if (command.includes("gobuster") || command.includes("ffuf") || command.includes("dirsearch")) {
+  if (
+    command.includes("gobuster") ||
+    command.includes("ffuf") ||
+    command.includes("dirsearch")
+  ) {
     // Look for interesting status codes
     const dirMatches = combined.matchAll(
-      /(\S+)\s+\(Status:\s*(200|301|302|403|500)\)/g
+      /(\S+)\s+\(Status:\s*(200|301|302|403|500)\)/g,
     );
     for (const match of dirMatches) {
       const status = match[2];
@@ -197,7 +207,11 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
     const matches = combined.matchAll(pattern);
     for (const match of matches) {
       // Filter out common false positives
-      if (match[1].length > 5 && !match[1].includes("***") && !match[1].includes("xxx")) {
+      if (
+        match[1].length > 5 &&
+        !match[1].includes("***") &&
+        !match[1].includes("xxx")
+      ) {
         findings.push({
           type: "credential",
           severity: "high",
@@ -216,7 +230,7 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
   // ── Shell access detection ────────────────────────────────
   if (
     combined.includes("uid=") ||
-    combined.includes("$ ") && combined.includes("root") ||
+    (combined.includes("$ ") && combined.includes("root")) ||
     combined.includes("meterpreter >") ||
     combined.includes("shell opened")
   ) {
@@ -244,7 +258,7 @@ function patternParse(command: string, stdout: string, stderr: string): Finding[
 async function llmParse(
   command: string,
   stdout: string,
-  stderr: string
+  stderr: string,
 ): Promise<Finding[]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return [];
@@ -332,7 +346,7 @@ function severityToCVSS(severity: Finding["severity"]): number {
 export async function parseOutput(
   command: string,
   stdout: string,
-  stderr: string
+  stderr: string,
 ): Promise<ParseResult> {
   console.log(`[Parsing] Parsing output for: ${command.slice(0, 80)}...`);
 

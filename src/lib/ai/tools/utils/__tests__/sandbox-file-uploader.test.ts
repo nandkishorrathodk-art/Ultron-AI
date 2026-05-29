@@ -69,6 +69,7 @@ describe("uploadSandboxFileToConvex", () => {
     }));
     mockGetConvexClient.mockReturnValue({
       action: mockConvexAction,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   });
 
@@ -82,6 +83,7 @@ describe("uploadSandboxFileToConvex", () => {
 
     await expect(
       uploadSandboxFileToConvex({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         sandbox: sandbox as any,
         userId: "u1",
         fullPath: "/home/user/large.tar.gz",
@@ -102,6 +104,7 @@ describe("uploadSandboxFileToConvex", () => {
 
     await expect(
       uploadSandboxFileToConvex({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         sandbox: sandbox as any,
         userId: "u1",
         fullPath: "/home/user/large.tar.gz",
@@ -118,6 +121,7 @@ describe("uploadSandboxFileToConvex", () => {
     const sandbox = makeSandbox(MAX_FILE_SIZE_BYTES + 1);
 
     await uploadSandboxFileToConvex({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sandbox: sandbox as any,
       userId: "u1",
       fullPath: "/home/user/archive.tar.gz",
@@ -137,6 +141,7 @@ describe("uploadSandboxFileToConvex", () => {
     const sandbox = makeSandbox(1234);
 
     const saved = await uploadSandboxFileToConvex({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sandbox: sandbox as any,
       userId: "u1",
       fullPath: "/home/user/report.txt",
@@ -165,6 +170,7 @@ describe("uploadSandboxFileToConvex", () => {
     const sandbox = makeSandbox(1234);
 
     await uploadSandboxFileToConvex({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sandbox: sandbox as any,
       userId: "u1",
       fullPath: "C:\\Users\\user\\report.txt",
@@ -188,6 +194,7 @@ describe("uploadSandboxFileToConvex", () => {
     const sandbox = makeSandbox(4321, true);
 
     await uploadSandboxFileToConvex({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sandbox: sandbox as any,
       userId: "u1",
       fullPath: "/home/user/archive.tar.gz",

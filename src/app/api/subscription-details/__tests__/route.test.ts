@@ -59,6 +59,7 @@ jest.mock("../../stripe", () => ({
 function makeRequest(body: Record<string, unknown> = {}) {
   return {
     json: jest.fn().mockResolvedValue(body),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 

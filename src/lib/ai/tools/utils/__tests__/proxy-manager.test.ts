@@ -55,12 +55,17 @@ const createMockContext = (sandbox: ReturnType<typeof createMockSandbox>) => {
 
   return {
     sandboxManager,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     writer: { write: jest.fn() } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userLocation: {} as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     todoManager: {} as any,
     userID: "test-user",
     chatId: "test-chat",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fileAccumulator: {} as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     backgroundProcessTracker: {} as any,
     mode: "agent" as const,
     isE2BSandbox: () => true,
@@ -132,6 +137,7 @@ describe("Proxy Manager", () => {
 
       // The background start call should have background: true
       const bgCall = sandbox.commands.run.mock.calls.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (call: any[]) => call[1]?.background === true,
       );
       expect(bgCall).toBeDefined();
@@ -151,6 +157,7 @@ describe("Proxy Manager", () => {
       await ensureCaido(context);
 
       const bgCall = sandbox.commands.run.mock.calls.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (call: any[]) => call[1]?.background === true,
       );
       expect(bgCall![0]).not.toContain("--ui-domain");
@@ -189,6 +196,7 @@ describe("Proxy Manager", () => {
 
       await ensureCaido(context);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const envCall = sandbox.commands.run.mock.calls.find((call: any[]) =>
         call[0]?.includes("CAIDO_UI_URL"),
       );

@@ -119,12 +119,14 @@ jest.mock("../SidebarHistory", () => ({
 }));
 
 jest.mock("../MemoizedMarkdown", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   MemoizedMarkdown: ({ children }: any) => (
     <div data-testid="memoized-markdown">{children}</div>
   ),
 }));
 
 jest.mock("../Messages", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Messages: ({ messages }: any) => (
     <div data-testid="messages-component">{messages.length} messages</div>
   ),
@@ -154,15 +156,18 @@ jest.mock("../Footer", () => ({
 }));
 
 jest.mock("../DragDropOverlay", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DragDropOverlay: ({ isVisible }: any) =>
     isVisible ? <div data-testid="drag-overlay">Drag Overlay</div> : null,
 }));
 
 jest.mock("../ConvexErrorBoundary", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ConvexErrorBoundary: ({ children }: any) => <div>{children}</div>,
 }));
 
 jest.mock("@/components/ui/sidebar", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SidebarProvider: ({ children }: any) => <div>{children}</div>,
 }));
 
@@ -176,8 +181,10 @@ describe("Chat Component Integration", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useParams } = require("next/navigation");
     useParams.mockReturnValue({});
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { useChat } = require("@ai-sdk/react");
     mockUseChat = useChat as jest.Mock;
 
@@ -205,6 +212,7 @@ describe("Chat Component Integration", () => {
     });
 
     it("should render with provided chatId", () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { useParams } = require("next/navigation");
       useParams.mockReturnValue({ id: "test-chat-123" });
 

@@ -111,6 +111,7 @@ export const FULL_OUTPUT_SAVED_MESSAGE = (
  * Count tokens for a single message part, excluding providerMetadata/callProviderMetadata
  */
 const countPartTokens = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: UIMessagePart<any, any>,
   fileTokens: Record<Id<"files">, number> = {},
 ): number => {
@@ -127,6 +128,7 @@ const countPartTokens = (
   }
 
   // For other part types, exclude provider metadata (e.g., OpenRouter reasoning_details)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const partAny = part as any;
   const hasMetadata = partAny.providerMetadata || partAny.callProviderMetadata;
 

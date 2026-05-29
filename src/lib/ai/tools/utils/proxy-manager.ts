@@ -452,7 +452,7 @@ async function doEnsureCaido(
     tracker.path = "needs_start";
     // On local sandboxes, set --ui-domain so the Caido UI is accessible.
     // On E2B, skip it — the sandbox URL is unstable and we don't want users accessing it.
-    let uiDomainFlag = "";
+    const uiDomainFlag = "";
 
     // Start caido-cli as a persistent background process
     const bgStart = performance.now();
@@ -531,7 +531,7 @@ async function exportCaidoUiUrl(
   options: Record<string, unknown>,
 ): Promise<void> {
   let isE2B = false;
-  let uiUrl = `http://127.0.0.1:${config.port}`;
+  const uiUrl = `http://127.0.0.1:${config.port}`;
   try {
     const host = sandbox.getHost(config.port);
     const domain = host.replace(/^https?:\/\//, "").split("/")[0];

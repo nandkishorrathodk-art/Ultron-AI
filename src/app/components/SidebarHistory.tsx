@@ -6,6 +6,7 @@ import ChatItem from "./ChatItem";
 import Loading from "@/components/ui/loading";
 
 interface SidebarHistoryProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   chats: any[];
   paginationStatus?:
     | "LoadingFirstPage"
@@ -96,6 +97,7 @@ const SidebarHistory: React.FC<SidebarHistoryProps> = ({
   // Chat list with buttons (same for mobile and desktop)
   return (
     <div className="p-2 space-y-1" data-testid="sidebar-chat-list">
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       {chats.map((chat: any) => (
         <ChatItem
           key={chat._id}

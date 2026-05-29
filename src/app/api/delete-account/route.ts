@@ -113,6 +113,7 @@ export const POST = async (req: NextRequest) => {
           }
 
           // Load organization to get Stripe customer ID if present
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let org: any = null;
           try {
             org = await workos.organizations.getOrganization(orgId);
@@ -188,8 +189,9 @@ export const POST = async (req: NextRequest) => {
       return error.toResponse();
     }
     const message =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       error && typeof error === "object" && "message" in (error as any)
-        ? (error as any).message
+        ? (error as Error).message
         : "Failed to cancel subscriptions and remove organizations";
     console.error("Failed to cancel subscriptions and remove orgs:", error);
     return NextResponse.json({ error: message }, { status: 500 });

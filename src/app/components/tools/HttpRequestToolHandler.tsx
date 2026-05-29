@@ -9,6 +9,7 @@ import { isUserStoppedToolError } from "@/lib/chat/tool-abort-utils";
 
 interface HttpRequestToolHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
 }
@@ -56,11 +57,15 @@ export const HttpRequestToolHandler = ({
     const terminalDataParts = message.parts.filter(
       (p) =>
         p.type === "data-terminal" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (p as any).data?.toolCallId === toolCallId,
     );
-    return terminalDataParts
-      .map((p) => (p as any).data?.terminal || "")
-      .join("");
+    return (
+      terminalDataParts
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((p) => (p as any).data?.terminal || "")
+        .join("")
+    );
   }, [message.parts, toolCallId]);
 
   // Memoize final output computation

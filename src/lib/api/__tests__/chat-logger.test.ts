@@ -1,7 +1,10 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).Request = class Request {};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).Response = class Response {};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).Headers = class Headers {};
 
 const {
@@ -11,7 +14,9 @@ const {
   captureFreeAgentValueReached,
   captureToolCalls,
   captureUsageCost,
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
 } = require("../chat-logger");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ChatSDKError } = require("../../errors");
 
 describe("captureToolCalls", () => {
@@ -28,7 +33,9 @@ describe("captureToolCalls", () => {
     };
 
     captureToolCalls({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: posthog as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatLogger: chatLogger as any,
       userId: "user_123",
       mode: "agent",
@@ -61,7 +68,9 @@ describe("captureToolCalls", () => {
     const capture = jest.fn();
 
     captureToolCalls({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatLogger: { getToolCalls: () => [] } as any,
       userId: "user_123",
       mode: "agent",
@@ -76,6 +85,7 @@ describe("captureAgentRun", () => {
     const capture = jest.fn();
 
     captureAgentRun({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       mode: "agent",
@@ -100,6 +110,7 @@ describe("captureAgentRun", () => {
     const capture = jest.fn();
 
     captureAgentRun({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       mode: "ask",
@@ -117,6 +128,7 @@ describe("captureFreeAgentValueReached", () => {
     const capture = jest.fn();
 
     captureFreeAgentValueReached({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       chatId: "chat_123",
@@ -127,6 +139,7 @@ describe("captureFreeAgentValueReached", () => {
       outcome: "success",
       chatLogger: {
         getToolCalls: () => [{ name: "web_search" }, { name: "open_url" }],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     });
 
@@ -158,6 +171,7 @@ describe("captureFreeAgentValueReached", () => {
   it("does not capture for paid, ask mode, or unsuccessful runs", () => {
     const capture = jest.fn();
     const baseArgs = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       chatId: "chat_123",
@@ -166,6 +180,7 @@ describe("captureFreeAgentValueReached", () => {
       subscription: "free",
       sandboxInfo: { type: "e2b" },
       outcome: "success" as const,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatLogger: { getToolCalls: () => [] } as any,
     };
 
@@ -195,6 +210,7 @@ describe("captureAgentCompletionAnalytics", () => {
     const capture = jest.fn();
 
     captureAgentCompletionAnalytics({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       chatId: "chat_123",
@@ -203,6 +219,7 @@ describe("captureAgentCompletionAnalytics", () => {
       subscription: "free",
       sandboxInfo: { type: "e2b" },
       outcome: "success",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatLogger: { getToolCalls: () => [{ name: "web_search" }] } as any,
     });
 
@@ -235,6 +252,7 @@ describe("captureAgentCompletionAnalytics", () => {
     const capture = jest.fn();
 
     captureAgentCompletionAnalytics({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       chatId: "chat_123",
@@ -243,6 +261,7 @@ describe("captureAgentCompletionAnalytics", () => {
       subscription: "pro",
       sandboxInfo: { type: "e2b" },
       outcome: "success",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chatLogger: { getToolCalls: () => [{ name: "web_search" }] } as any,
     });
 
@@ -265,6 +284,7 @@ describe("captureUsageCost", () => {
     const capture = jest.fn();
 
     captureUsageCost({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       posthog: { capture } as any,
       userId: "user_123",
       subscription: "pro",

@@ -21,6 +21,7 @@ import { Finding } from "../ptg";
 export interface DiscoveredAsset {
   type: "subdomain" | "port" | "endpoint" | "technology" | "api_schema";
   value: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: Record<string, any>;
   source: string;
 }
@@ -43,7 +44,7 @@ export interface AttackSurface {
  */
 export async function discoverSubdomains(
   sandbox: Sandbox,
-  target: string
+  target: string,
 ): Promise<string[]> {
   console.log(`[Discovery] Enumerating subdomains for: ${target}`);
 
@@ -53,7 +54,7 @@ export async function discoverSubdomains(
   try {
     const result = await sandbox.commands.run(
       `subfinder -d ${target} -silent -timeout 30 2>/dev/null || echo ""`,
-      { timeoutMs: 45000 }
+      { timeoutMs: 45000 },
     );
     if (result.stdout) {
       result.stdout
@@ -70,7 +71,7 @@ export async function discoverSubdomains(
   try {
     const result = await sandbox.commands.run(
       `curl -s "https://crt.sh/?q=%25.${target}&output=json" 2>/dev/null | grep -oP '"name_value":"[^"]*"' | cut -d'"' -f4 | sort -u | head -100`,
-      { timeoutMs: 15000 }
+      { timeoutMs: 15000 },
     );
     if (result.stdout) {
       result.stdout
@@ -95,7 +96,7 @@ export async function discoverSubdomains(
  */
 export async function discoverPorts(
   sandbox: Sandbox,
-  target: string
+  target: string,
 ): Promise<{ port: number; service: string; version: string }[]> {
   console.log(`[Discovery] Port scanning: ${target}`);
 
@@ -104,13 +105,13 @@ export async function discoverPorts(
   try {
     const result = await sandbox.commands.run(
       `nmap -sV -F -T4 --open ${target} -oG - 2>/dev/null | grep "Ports:"`,
-      { timeoutMs: 60000 }
+      { timeoutMs: 60000 },
     );
 
     if (result.stdout) {
       // Parse grepable nmap output
       const portMatches = result.stdout.matchAll(
-        /(\d+)\/open\/tcp\/\/([^/]*)\/\/([^/]*)\//g
+        /(\d+)\/open\/tcp\/\/([^/]*)\/\/([^/]*)\//g,
       );
       for (const match of portMatches) {
         ports.push({
@@ -149,7 +150,7 @@ export async function discoverPorts(
 export async function discoverEndpoints(
   sandbox: Sandbox,
   target: string,
-  port: number = 80
+  port: number = 80,
 ): Promise<string[]> {
   console.log(`[Discovery] Endpoint discovery on ${target}:${port}`);
 
@@ -161,7 +162,7 @@ export async function discoverEndpoints(
   try {
     const result = await sandbox.commands.run(
       `curl -s "${baseUrl}/robots.txt" 2>/dev/null | grep -oP '(Disallow|Allow): \\K.*' | head -50`,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     if (result.stdout) {
       result.stdout
@@ -178,7 +179,7 @@ export async function discoverEndpoints(
   try {
     const result = await sandbox.commands.run(
       `curl -s "${baseUrl}/sitemap.xml" 2>/dev/null | grep -oP '<loc>\\K[^<]+' | head -100`,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     if (result.stdout) {
       result.stdout
@@ -200,15 +201,32 @@ export async function discoverEndpoints(
 
   // 3. Common paths quick check
   const commonPaths = [
-    "/api", "/api/v1", "/api/v2", "/admin", "/login", "/dashboard",
-    "/graphql", "/swagger.json", "/openapi.json", "/api-docs",
-    "/.env", "/.git/HEAD", "/wp-admin", "/wp-login.php",
-    "/actuator", "/health", "/info", "/metrics",
+    "/api",
+    "/api/v1",
+    "/api/v2",
+    "/admin",
+    "/login",
+    "/dashboard",
+    "/graphql",
+    "/swagger.json",
+    "/openapi.json",
+    "/api-docs",
+    "/.env",
+    "/.git/HEAD",
+    "/wp-admin",
+    "/wp-login.php",
+    "/actuator",
+    "/health",
+    "/info",
+    "/metrics",
   ];
 
   try {
     const pathChecks = commonPaths
-      .map((p) => `curl -s -o /dev/null -w "%{http_code} ${p}\\n" "${baseUrl}${p}"`)
+      .map(
+        (p) =>
+          `curl -s -o /dev/null -w "%{http_code} ${p}\\n" "${baseUrl}${p}"`,
+      )
       .join(" && ");
 
     const result = await sandbox.commands.run(pathChecks, { timeoutMs: 30000 });
@@ -235,7 +253,7 @@ export async function discoverEndpoints(
  */
 export async function discoverTechnologies(
   sandbox: Sandbox,
-  target: string
+  target: string,
 ): Promise<string[]> {
   console.log(`[Discovery] Technology fingerprinting: ${target}`);
 
@@ -245,7 +263,7 @@ export async function discoverTechnologies(
   try {
     const result = await sandbox.commands.run(
       `whatweb -a 3 ${target} --log-brief=/dev/stdout 2>/dev/null || echo ""`,
-      { timeoutMs: 30000 }
+      { timeoutMs: 30000 },
     );
     if (result.stdout) {
       // Extract tech names from whatweb output
@@ -262,7 +280,7 @@ export async function discoverTechnologies(
   try {
     const result = await sandbox.commands.run(
       `curl -sI "https://${target}" 2>/dev/null || curl -sI "http://${target}" 2>/dev/null`,
-      { timeoutMs: 10000 }
+      { timeoutMs: 10000 },
     );
     if (result.stdout) {
       const headers = result.stdout.toLowerCase();
@@ -298,7 +316,7 @@ export async function discoverTechnologies(
  */
 export async function discoverAPISchemas(
   sandbox: Sandbox,
-  target: string
+  target: string,
 ): Promise<string[]> {
   console.log(`[Discovery] API schema detection: ${target}`);
 
@@ -320,7 +338,7 @@ export async function discoverAPISchemas(
     try {
       const result = await sandbox.commands.run(
         `curl -s -o /dev/null -w "%{http_code}" "https://${target}${path}" 2>/dev/null || curl -s -o /dev/null -w "%{http_code}" "http://${target}${path}" 2>/dev/null`,
-        { timeoutMs: 5000 }
+        { timeoutMs: 5000 },
       );
       if (result.stdout?.trim() === "200") {
         schemas.push(path);
@@ -342,9 +360,11 @@ export async function discoverAPISchemas(
  */
 export async function discoverAttackSurface(
   sandbox: Sandbox,
-  target: string
+  target: string,
 ): Promise<AttackSurface> {
-  console.log(`\n[Discovery] ═══ Starting full attack surface discovery for: ${target} ═══\n`);
+  console.log(
+    `\n[Discovery] ═══ Starting full attack surface discovery for: ${target} ═══\n`,
+  );
 
   // Run discovery phases (some can be parallel)
   const [subdomains, ports, technologies] = await Promise.all([
@@ -354,8 +374,10 @@ export async function discoverAttackSurface(
   ]);
 
   // Endpoint discovery depends on knowing the web ports
-  const webPorts = ports.filter((p) =>
-    ["http", "https", "http-alt"].includes(p.service) || [80, 443, 8080, 8443].includes(p.port)
+  const webPorts = ports.filter(
+    (p) =>
+      ["http", "https", "http-alt"].includes(p.service) ||
+      [80, 443, 8080, 8443].includes(p.port),
   );
 
   const endpoints: string[] = [];
@@ -376,7 +398,11 @@ export async function discoverAttackSurface(
     technologies,
     apiSchemas,
     totalAssets:
-      subdomains.length + ports.length + endpoints.length + technologies.length + apiSchemas.length,
+      subdomains.length +
+      ports.length +
+      endpoints.length +
+      technologies.length +
+      apiSchemas.length,
     discoveredAt: Date.now(),
   };
 

@@ -30,8 +30,10 @@ import { hasRestageableLocalDesktopAttachments } from "@/lib/utils/local-attachm
 interface UseChatHandlersProps {
   chatId: string;
   messages: ChatMessage[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sendMessage: (message?: any, options?: { body?: any }) => void;
   stop: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   regenerate: (options?: { body?: any }) => void;
   setMessages: (
     messages: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
@@ -577,7 +579,9 @@ export const useChatHandlers = ({
     }
 
     // Build updated parts: text + remaining file parts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buildUpdatedParts = (currentParts: any[]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const newParts: any[] = [];
 
       // Add text part if there's content
@@ -649,12 +653,14 @@ export const useChatHandlers = ({
       const editedMessage = messages[editedMessageIndex];
 
       // Build updated parts for the edited message
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updatedParts: any[] = [];
       if (newContent.trim()) {
         updatedParts.push({ type: "text", text: newContent });
       }
       if (remainingFileIds && remainingFileIds.length > 0) {
         const remainingFileParts = editedMessage.parts.filter(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (part: any) =>
             part.type === "file" &&
             part.fileId &&
@@ -721,6 +727,7 @@ export const useChatHandlers = ({
 
       // Send the queued message immediately
       const validFiles = message.files || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const messagePayload: any = {};
 
       // Only add text if it exists

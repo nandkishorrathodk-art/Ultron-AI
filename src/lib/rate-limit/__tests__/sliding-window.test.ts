@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports */
 /**
  * Tests for fixed-window rate limiting (free users).
  *

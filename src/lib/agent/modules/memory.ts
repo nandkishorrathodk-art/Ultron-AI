@@ -1,12 +1,14 @@
-import { Finding, PTGNode, PenetrationTaskGraph } from '../ptg';
-import { writeFindingToKG, kgClient } from '../../neo4j';
-import { qdrant } from '../../qdrant';
-import { generateEmbedding } from '../../embeddings';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Finding, PTGNode, PenetrationTaskGraph } from "../ptg";
+import { writeFindingToKG, kgClient } from "../../neo4j";
+import { qdrant } from "../../qdrant";
+import { generateEmbedding } from "../../embeddings";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
-import crypto from 'crypto';
+import crypto from "crypto";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL || "";
+const convexUrl =
+  process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL || "";
 const convexClient = convexUrl ? new ConvexHttpClient(convexUrl) : null;
 
 // Short-term memory: Current session findings in-memory
@@ -23,9 +25,11 @@ export async function storeMemory(
   sessionId: string,
   task: PTGNode,
   findings: Finding[],
-  ptg?: PenetrationTaskGraph
+  ptg?: PenetrationTaskGraph,
 ) {
-  console.log(`[Module: Memory] Storing ${findings.length} findings for session ${sessionId}`);
+  console.log(
+    `[Module: Memory] Storing ${findings.length} findings for session ${sessionId}`,
+  );
 
   if (findings.length === 0) return;
 
@@ -38,58 +42,77 @@ export async function storeMemory(
   const neoSession = kgClient.session();
   try {
     const hostIp = findings[0]?.endpoint || "192.168.1.1"; // Use finding endpoint or default IP
-    
+
     // Create base session and host nodes
-    await neoSession.run(`
+    await neoSession.run(
+      `
       MERGE (s:Session {id: $sessionId})
       MERGE (h:Host {ip: $hostIp})
       MERGE (s)-[:TARGETS]->(h)
-    `, { sessionId, hostIp });
+    `,
+      { sessionId, hostIp },
+    );
 
     for (const finding of findings) {
-      if (finding.type === 'vulnerability') {
-        const cve = finding.cve_ids[0] || `VULN-${crypto.randomUUID().substring(0, 8)}`;
-        await neoSession.run(`
+      if (finding.type === "vulnerability") {
+        const cve =
+          finding.cve_ids[0] || `VULN-${crypto.randomUUID().substring(0, 8)}`;
+        await neoSession.run(
+          `
           MERGE (v:Vulnerability {cve_id: $cve})
           ON CREATE SET v.description = $desc, v.severity = $severity, v.cvss = $cvss
           MERGE (h:Host {ip: $hostIp})
           MERGE (h)-[:AFFECTED_BY]->(v)
           MERGE (s:Session {id: $sessionId})
           MERGE (v)-[:EXPLOITED_BY]->(s)
-        `, {
-          cve,
-          desc: finding.description,
-          severity: finding.severity,
-          cvss: finding.cvss_score || 0,
-          hostIp,
-          sessionId
-        });
-      } else if (finding.type === 'open_port') {
+        `,
+          {
+            cve,
+            desc: finding.description,
+            severity: finding.severity,
+            cvss: finding.cvss_score || 0,
+            hostIp,
+            sessionId,
+          },
+        );
+      } else if (finding.type === "open_port") {
         const portMatch = finding.description.match(/\b\d+\b/);
         const portNum = portMatch ? parseInt(portMatch[0]) : 80;
-        await neoSession.run(`
+        await neoSession.run(
+          `
           MERGE (p:Port {port: $portNum})
           MERGE (h:Host {ip: $hostIp})
           MERGE (h)-[:HAS_PORT]->(p)
-        `, { portNum, hostIp });
-      } else if (finding.type === 'service') {
-        await neoSession.run(`
+        `,
+          { portNum, hostIp },
+        );
+      } else if (finding.type === "service") {
+        await neoSession.run(
+          `
           MERGE (serv:Service {name: $desc})
           MERGE (h:Host {ip: $hostIp})
           MERGE (h)-[:RUNS_SERVICE]->(serv)
-        `, { desc: finding.description, hostIp });
-      } else if (finding.type === 'credential') {
-        await neoSession.run(`
+        `,
+          { desc: finding.description, hostIp },
+        );
+      } else if (finding.type === "credential") {
+        await neoSession.run(
+          `
           MERGE (c:Credential {info: $desc})
           MERGE (h:Host {ip: $hostIp})
           MERGE (h)-[:HAS_CREDENTIAL]->(c)
-        `, { desc: finding.description, hostIp });
-      } else if (finding.type === 'shell_access') {
-        await neoSession.run(`
+        `,
+          { desc: finding.description, hostIp },
+        );
+      } else if (finding.type === "shell_access") {
+        await neoSession.run(
+          `
           MERGE (sa:ShellAccess {details: $desc})
           MERGE (h:Host {ip: $hostIp})
           MERGE (h)-[:HAS_SHELL]->(sa)
-        `, { desc: finding.description, hostIp });
+        `,
+          { desc: finding.description, hostIp },
+        );
       }
     }
   } catch (error) {
@@ -120,12 +143,14 @@ export async function storeMemory(
               cvss: finding.cvss_score || 0,
               epss: finding.epss_score || 0,
               mitre: finding.mitre_technique || "",
-              timestamp: Date.now()
-            }
-          }
-        ]
+              timestamp: Date.now(),
+            },
+          },
+        ],
       });
-      console.log(`[Memory: Qdrant] Indexed finding in Qdrant: ${finding.description.slice(0, 50)}...`);
+      console.log(
+        `[Memory: Qdrant] Indexed finding in Qdrant: ${finding.description.slice(0, 50)}...`,
+      );
     } catch (error) {
       console.error("[Memory: Qdrant Error]", error);
     }
@@ -134,12 +159,15 @@ export async function storeMemory(
   // 4. Mid-term Memory: Convex Sync (Syncing serialized PTG state)
   if (ptg && convexClient) {
     try {
+       
       const convexSessionId = sessionId as any;
       await convexClient.mutation(api.sessions.updatePTG, {
         id: convexSessionId,
         ptgState: ptg.serialize(),
       });
-      console.log(`[Memory: Convex] Synced PTG state to Convex for session ${sessionId}`);
+      console.log(
+        `[Memory: Convex] Synced PTG state to Convex for session ${sessionId}`,
+      );
     } catch (error) {
       console.error("[Memory: Convex Sync Error]", error);
     }
@@ -149,7 +177,11 @@ export async function storeMemory(
 /**
  * Retrieve findings from memory using semantic search (Qdrant) across all past sessions.
  */
-export async function searchPastFindings(query: string, limit = 5): Promise<any[]> {
+ 
+export async function searchPastFindings(
+  query: string,
+  limit = 5,
+): Promise<any[]> {
   try {
     const vector = await generateEmbedding(query);
     const results = await qdrant.search("pentest_findings", {
@@ -162,4 +194,3 @@ export async function searchPastFindings(query: string, limit = 5): Promise<any[
     return [];
   }
 }
-

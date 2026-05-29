@@ -17,6 +17,7 @@ const getPartType = (part: unknown): string => {
 };
 
 export function getMessagePersistenceDiagnostics(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: UIMessagePart<any, any>[],
 ) {
   const partTypes: Record<string, number> = {};

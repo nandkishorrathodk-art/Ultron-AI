@@ -16,6 +16,7 @@ import { isUserStoppedToolError } from "@/lib/chat/tool-abort-utils";
 
 interface TerminalToolHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
   /** Pre-computed streaming output for this toolCallId (avoids filtering message.parts in every instance) */
@@ -62,6 +63,7 @@ export const TerminalToolHandler = memo(function TerminalToolHandler({
   const terminalOutput = output as ShellToolOutput;
 
   // Memoize streaming output: use pre-computed value when passed, else derive from message.parts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const effectiveToolCallId = (part as any).data?.toolCallId ?? toolCallId;
   const streamingOutput = useMemo(() => {
     if (precomputedStreamingOutput !== undefined)

@@ -50,6 +50,7 @@ const OpenFileButton = ({ filePath }: { filePath: string }) => {
 
 interface FileToolsHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
 }

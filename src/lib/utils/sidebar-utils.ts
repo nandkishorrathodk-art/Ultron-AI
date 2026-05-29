@@ -13,15 +13,19 @@ import {
 interface MessagePart {
   type: string;
   toolCallId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any;
   state?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 
 export interface Message {
   role: string;
   parts?: MessagePart[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 
@@ -530,7 +534,9 @@ export function extractSidebarContentFromMessage(
       const requestedPaths: string[] = part.input?.files || [];
 
       // Seed from persisted message.fileDetails so sidebar shows files after reload
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const persistedFiles = (message.fileDetails as any[] | undefined) || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const files = persistedFiles.map((f: any) => ({
         name: f.name || "",
         mediaType: f.mediaType,
