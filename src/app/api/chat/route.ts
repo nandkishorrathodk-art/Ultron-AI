@@ -795,12 +795,12 @@ export async function POST(req: Request) {
         const provider = createOpenAI({
           baseURL: modelConfig.baseURL,
           apiKey: modelConfig.apiKey,
-          // @ts-ignore
-          compatibility: "compatible", // force standard /chat/completions endpoint
+          // @ts-expect-error — compatibility exists at runtime but not in SDK types
+          compatibility: "compatible",
         });
 
         const result = streamText({
-          model: provider(modelConfig.model),
+          model: provider.chat(modelConfig.model),
           system: SYSTEM_PROMPT,
           messages: cleanMessages,
           // @ts-ignore — maxSteps works at runtime but types don't include it in this SDK version
