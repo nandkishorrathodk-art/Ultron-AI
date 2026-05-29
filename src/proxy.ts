@@ -13,7 +13,6 @@ import { jwtVerify } from "jose";
  */
 
 const PUBLIC_PATHS = new Set([
-  "/",
   "/landing",
   "/login",
   "/signup",
@@ -52,6 +51,7 @@ function isBrowserRequest(request: NextRequest): boolean {
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ||
+    process.env.SESSION_SECRET ||
     process.env.AUTH_SECRET ||
     "ultron-ai-default-secret-change-in-production",
 );
@@ -71,11 +71,11 @@ export default async function proxy(request: NextRequest) {
 
   // Extract JWT token
   const token =
-    request.cookies.get("ultron-session")?.value ||
+    request.cookies.get("ultron_session")?.value ||
     request.headers.get("authorization")?.replace("Bearer ", "");
 
   if (!token) {
-    // No token — redirect browser requests to login, return 401 for API
+    // No token — redirect browser requests to login or landing
     if (!isBrowserRequest(request)) {
       return NextResponse.json(
         {
@@ -84,6 +84,10 @@ export default async function proxy(request: NextRequest) {
         },
         { status: 401 },
       );
+    }
+    // Unauthenticated users visiting / see the landing page
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/landing", request.url));
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
@@ -129,7 +133,7 @@ export default async function proxy(request: NextRequest) {
           { status: 401 },
         );
 
-    response.cookies.delete("ultron-session");
+    response.cookies.delete("ultron_session");
     return addSecurityHeaders(response);
   }
 }

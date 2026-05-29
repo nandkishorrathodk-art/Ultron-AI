@@ -188,7 +188,8 @@ export default function LandingPage() {
             <a href="#architecture" className="nav-link">Architecture</a>
             <a href="#comparison" className="nav-link">Compare</a>
             <a href="#tech" className="nav-link">Tech Stack</a>
-            <Link href="/" className="nav-cta">
+            <Link href="/download" className="nav-link">Download</Link>
+            <Link href="/login" className="nav-cta">
               Launch Console <ChevronRightIcon size={14} />
             </Link>
           </div>
@@ -242,7 +243,7 @@ export default function LandingPage() {
           </p>
 
           <div className="hero-actions">
-            <Link href="/" className="btn-primary">
+            <Link href="/login" className="btn-primary">
               <TerminalIcon size={18} />
               Launch Console
             </Link>
@@ -576,7 +577,7 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="animate-in" style={{ position: "relative", zIndex: 1 }}>
-            <Link href="/" className="btn-primary" style={{ fontSize: 17, padding: "16px 40px" }}>
+            <Link href="/login" className="btn-primary" style={{ fontSize: 17, padding: "16px 40px" }}>
               <TerminalIcon size={20} />
               Launch Ultron Console
               <ArrowRightIcon size={18} />
@@ -600,7 +601,7 @@ export default function LandingPage() {
             <a href="#architecture" className="footer-link">Architecture</a>
             <a href="#comparison" className="footer-link">Compare</a>
             <a href="#tech" className="footer-link">Stack</a>
-            <Link href="/" className="footer-link">Console</Link>
+            <Link href="/login" className="footer-link">Console</Link>
           </div>
         </div>
       </footer>
