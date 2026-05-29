@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs, react-hooks/set-state-in-effect */
 "use client";
 
 import { useChat, type UseChatHelpers } from "@ai-sdk/react";
@@ -149,6 +150,7 @@ function StreamEffects({
   status: UseChatHelpers<ChatMessage>["status"];
   chatMode: string;
   sendMessage: (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     message: { text: string } | any,
     options?: { body?: Record<string, unknown> },
   ) => void;
@@ -303,6 +305,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   );
 
   // Query local sandbox connections only when we need to validate a non-E2B sandbox_type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const storedSandboxType = (chatData as any)?.sandbox_type as
     | string
     | undefined;
@@ -321,6 +324,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   // flicker into the header on abort.
   const chatTitle = streamedTitle ?? chatData?.title ?? null;
   const activeTriggerRunRef = useLatestRef(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (chatData as any)?.active_trigger_run_id as string | undefined,
   );
 
@@ -340,6 +344,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   const messagesRef = useRef<ChatMessage[]>([]);
 
   // Ref for setMessages — needed by DefaultChatTransport which is created before useChat returns
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const setMessagesRef = useRef<(messages: any[]) => void>(() => {});
 
   // Default transport (OpenRouter) - stored in ref since it's created before useChat
@@ -422,6 +427,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
             stripAgentLongHeartbeatPartsFromMessages(msgs);
           return messagesWithoutHeartbeats.map((msg) => {
             if (!msg.parts || msg.parts.length === 0) return msg;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const strippedParts = msg.parts.map((part: any) => {
               if (part.type === "file" && "url" in part) {
                 const { url, ...partWithoutUrl } = part;
@@ -686,6 +692,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataId = (chatData as any)?.id as string | undefined;
     // Ignore when no data or data is stale (doesn't match current chatId)
     if (!chatData || dataId !== chatId) {
@@ -726,6 +733,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
     // Initialize mode from server once per chat id (only for existing chats)
     if (!hasInitializedModeFromChatRef.current && isExistingChat) {
       hasInitializedModeFromChatRef.current = true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const slug = (chatData as any).default_model_slug;
       if (slug === "ask" || slug === "agent") {
         setChatMode(slug);
@@ -742,6 +750,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   useEffect(() => {
     if (hasInitializedSandboxRef.current || !isExistingChat) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataId = (chatData as any)?.id as string | undefined;
     if (!chatData || dataId !== chatId) return;
 
@@ -793,8 +802,10 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   // Initialize model selection from chat data
   useEffect(() => {
     if (hasInitializedModelRef.current || !isExistingChat) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataId = (chatData as any)?.id as string | undefined;
     if (!chatData || dataId !== chatId) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const savedModel = (chatData as any).selected_model as string | undefined;
     hasInitializedModelRef.current = true;
     const coerced = coerceSelectedModel(savedModel ?? null);
@@ -809,6 +820,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   const updateChatPreferences = useMutation(api.chats.updateChatPreferences);
   useEffect(() => {
     if (!isExistingChat || !chatData) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataId = (chatData as any).id as string | undefined;
     if (dataId !== chatId) return;
     if (
@@ -819,7 +831,9 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
     }
 
     if (persistedPrefsRef.current === null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const savedModel = (chatData as any).selected_model as string | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const savedMode = (chatData as any).default_model_slug as
         | string
         | undefined;
@@ -1027,6 +1041,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
         sendMessage(
           {
             text: nextMessage.text,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             files: nextMessage.files as any,
           },
           {
@@ -1132,6 +1147,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
 
   // Get branched chat info directly from chatData (no additional query needed)
   const branchedFromChatId = chatData?.branched_from_chat_id;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const branchedFromChatTitle = (chatData as any)?.branched_from_title;
 
   // Check if we tried to load an existing chat but it doesn't exist or doesn't belong to user
@@ -1219,6 +1235,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
                   finishReason={chatData?.finish_reason}
                   uploadStatus={uploadStatus}
                   summarizationStatus={summarizationStatus}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   mode={chatMode ?? (chatData as any)?.default_model_slug}
                   chatTitle={chatTitle}
                   branchedFromChatId={branchedFromChatId}
@@ -1236,9 +1253,9 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
                             </h1>
                             <p className="text-muted-foreground max-w-md mx-auto px-4 py-3">
                               This chat won&apos;t appear in history, use or
-                              update Ultron-AI&apos;s memory, or be used to train
-                              models. This chat will be deleted when you refresh
-                              the page.
+                              update Ultron-AI&apos;s memory, or be used to
+                              train models. This chat will be deleted when you
+                              refresh the page.
                             </p>
                           </>
                         ) : (

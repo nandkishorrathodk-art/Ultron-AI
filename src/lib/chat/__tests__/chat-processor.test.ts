@@ -14,6 +14,7 @@ function makeFilePart(id: string, mediaType = "image/png") {
 function makeMessage(
   id: string,
   role: "user" | "assistant",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: any[],
 ): UIMessage {
   return { id, role, parts } as UIMessage;
@@ -44,11 +45,14 @@ describe("limitImageParts", () => {
     const result = limitImageParts(messages, "ask");
 
     const remainingFiles = result[0].parts.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (p: any) => p.type === "file",
     );
     expect(remainingFiles).toHaveLength(10);
     // Should keep f5..f14 (the 10 most recent), removing f0..f4
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((remainingFiles[0] as any).fileId).toBe("f5");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((remainingFiles[9] as any).fileId).toBe("f14");
   });
 
@@ -64,15 +68,19 @@ describe("limitImageParts", () => {
     const result = limitImageParts(messages, "ask");
 
     const allFiles = result.flatMap((msg) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       msg.parts.filter((p: any) => p.type === "file"),
     );
     expect(allFiles).toHaveLength(10);
     // Oldest 5 images (f0..f4) from first message should be removed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((allFiles[0] as any).fileId).toBe("f5");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((allFiles[9] as any).fileId).toBe("f14");
   });
 
   it("should preserve non-file parts when removing images", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parts: any[] = [
       { type: "text", text: "check these images" },
       ...Array.from({ length: 12 }, (_, i) => makeFilePart(`f${i}`)),
@@ -80,10 +88,13 @@ describe("limitImageParts", () => {
     const messages = [makeMessage("m1", "user", parts)];
     const result = limitImageParts(messages, "ask");
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const textParts = result[0].parts.filter((p: any) => p.type === "text");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fileParts = result[0].parts.filter((p: any) => p.type === "file");
 
     expect(textParts).toHaveLength(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((textParts[0] as any).text).toBe("check these images");
     expect(fileParts).toHaveLength(10);
   });
@@ -105,12 +116,15 @@ describe("limitImageParts", () => {
     const result = limitImageParts(messages, "ask");
 
     const remainingFiles = result[0].parts.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (p: any) => p.type === "file",
     );
     const images = remainingFiles.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (p: any) => p.mediaType === "image/png",
     );
     const pdfs = remainingFiles.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (p: any) => p.mediaType === "application/pdf",
     );
 
@@ -142,10 +156,13 @@ describe("limitImageParts", () => {
     const result = limitImageParts(messages, "agent");
 
     const remainingFiles = result[0].parts.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (p: any) => p.type === "file",
     );
     expect(remainingFiles).toHaveLength(20);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((remainingFiles[0] as any).fileId).toBe("f5");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((remainingFiles[19] as any).fileId).toBe("f24");
   });
 });
@@ -247,7 +264,9 @@ describe("selectModel", () => {
     });
 
     it("should ignore tier override for free users in ask mode", () => {
-      expect(selectModel("ask", "free", "Ultron-AI-pro")).toBe("ask-model-free");
+      expect(selectModel("ask", "free", "Ultron-AI-pro")).toBe(
+        "ask-model-free",
+      );
     });
   });
 

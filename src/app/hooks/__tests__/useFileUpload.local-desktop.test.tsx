@@ -14,6 +14,7 @@ const deleteFile = jest.fn();
 const saveFile = jest.fn();
 const generateS3UploadUrlAction = jest.fn();
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let globalState: any;
 
 jest.mock("convex/react", () => ({
@@ -48,6 +49,7 @@ describe("useFileUpload desktop-local agent attachments", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     global.fetch = jest.fn().mockResolvedValue({ ok: true }) as any;
     globalState = {
       uploadedFiles: [],
@@ -233,6 +235,7 @@ describe("useFileUpload desktop-local agent attachments", () => {
     await act(async () => {
       await result.current.handleFileUploadEvent({
         target: { files: [file] },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
     });
 

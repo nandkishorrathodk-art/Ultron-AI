@@ -1,22 +1,38 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Key, Database, Globe, CheckCircle, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Settings,
+  Key,
+  Database,
+  Globe,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
-  const [llmBaseUrl, setLlmBaseUrl] = useState("https://integrate.api.nvidia.com/v1");
+  const [llmBaseUrl, setLlmBaseUrl] = useState(
+    "https://integrate.api.nvidia.com/v1",
+  );
   const [llmModel, setLlmModel] = useState("meta/llama-3.1-70b-instruct");
   const [llmApiKey, setLlmApiKey] = useState("");
   const [e2bApiKey, setE2bApiKey] = useState("");
-  
+
   const [loading, setLoading] = useState(true);
   const [savingAI, setSavingAI] = useState(false);
   const [savingE2B, setSavingE2B] = useState(false);
-  
+
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -76,13 +92,17 @@ export default function SettingsPage() {
         const merged = { ...current, ...values };
         localStorage.setItem("ultron_settings", JSON.stringify(merged));
 
-        setSuccessMsg(`Successfully saved ${type === "ai" ? "AI & Model" : "E2B Sandbox"} configurations!`);
+        setSuccessMsg(
+          `Successfully saved ${type === "ai" ? "AI & Model" : "E2B Sandbox"} configurations!`,
+        );
         setTimeout(() => setSuccessMsg(null), 5000);
       } else {
         throw new Error(data.error || "Failed to update settings");
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "An unexpected error occurred saving settings.");
+      setErrorMsg(
+        err.message || "An unexpected error occurred saving settings.",
+      );
       setTimeout(() => setErrorMsg(null), 5000);
     } finally {
       if (type === "ai") setSavingAI(false);
@@ -106,13 +126,14 @@ export default function SettingsPage() {
             <Settings className="w-6 h-6 text-primary" />
             Settings
           </h1>
-          <p className="text-sm text-muted-foreground">Configure AI Providers, API Keys, and Database connections.</p>
+          <p className="text-sm text-muted-foreground">
+            Configure AI Providers, API Keys, and Database connections.
+          </p>
         </div>
       </header>
 
       <ScrollArea className="flex-1 p-6">
         <div className="max-w-3xl mx-auto space-y-8 pb-12">
-          
           {successMsg && (
             <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm transition-all duration-300 animate-in fade-in slide-in-from-top-4">
               <CheckCircle className="w-5 h-5 shrink-0" />
@@ -130,7 +151,9 @@ export default function SettingsPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-muted-foreground">Loading configurations...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading configurations...
+              </p>
             </div>
           ) : (
             <>
@@ -140,38 +163,47 @@ export default function SettingsPage() {
                     <Globe className="w-5 h-5 text-primary" />
                     <div>
                       <CardTitle>AI Provider (LLM)</CardTitle>
-                      <CardDescription>Configure the Large Language Model used by the Agent Pipeline.</CardDescription>
+                      <CardDescription>
+                        Configure the Large Language Model used by the Agent
+                        Pipeline.
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none text-muted-foreground">Provider Base URL</label>
-                    <Input 
-                      value={llmBaseUrl} 
+                    <label className="text-sm font-medium leading-none text-muted-foreground">
+                      Provider Base URL
+                    </label>
+                    <Input
+                      value={llmBaseUrl}
                       onChange={(e) => setLlmBaseUrl(e.target.value)}
                       placeholder="e.g. https://integrate.api.nvidia.com/v1"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none text-muted-foreground">Model Name</label>
-                    <Input 
-                      value={llmModel} 
+                    <label className="text-sm font-medium leading-none text-muted-foreground">
+                      Model Name
+                    </label>
+                    <Input
+                      value={llmModel}
                       onChange={(e) => setLlmModel(e.target.value)}
                       placeholder="e.g. meta/llama-3.1-70b-instruct"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none text-muted-foreground">API Key</label>
-                    <Input 
-                      type="password" 
-                      value={llmApiKey} 
+                    <label className="text-sm font-medium leading-none text-muted-foreground">
+                      API Key
+                    </label>
+                    <Input
+                      type="password"
+                      value={llmApiKey}
                       onChange={(e) => setLlmApiKey(e.target.value)}
                       placeholder="nvapi-***************************"
                     />
                   </div>
-                  <Button 
-                    onClick={handleSaveAI} 
+                  <Button
+                    onClick={handleSaveAI}
                     disabled={savingAI}
                     className="mt-2"
                   >
@@ -186,24 +218,28 @@ export default function SettingsPage() {
                     <Key className="w-5 h-5 text-yellow-500" />
                     <div>
                       <CardTitle>E2B Sandbox</CardTitle>
-                      <CardDescription>Configuration for the cloud code execution environment.</CardDescription>
+                      <CardDescription>
+                        Configuration for the cloud code execution environment.
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none text-muted-foreground">E2B API Key</label>
-                    <Input 
-                      type="password" 
-                      value={e2bApiKey} 
+                    <label className="text-sm font-medium leading-none text-muted-foreground">
+                      E2B API Key
+                    </label>
+                    <Input
+                      type="password"
+                      value={e2bApiKey}
                       onChange={(e) => setE2bApiKey(e.target.value)}
                       placeholder="e2b_********************************"
                     />
                   </div>
-                  <Button 
+                  <Button
                     onClick={handleSaveE2B}
                     disabled={savingE2B}
-                    variant="outline" 
+                    variant="outline"
                     className="mt-2 hover:bg-muted/40"
                   >
                     {savingE2B ? "Updating E2B Key..." : "Update E2B Key"}
@@ -217,27 +253,43 @@ export default function SettingsPage() {
                     <Database className="w-5 h-5 text-purple-500" />
                     <div>
                       <CardTitle>Database Infrastructure</CardTitle>
-                      <CardDescription>Qdrant Vector DB & Neo4j Knowledge Graph Connections.</CardDescription>
+                      <CardDescription>
+                        Qdrant Vector DB & Neo4j Knowledge Graph Connections.
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium leading-none text-muted-foreground">Qdrant URL</label>
-                      <Input defaultValue="http://localhost:6333" disabled className="bg-muted/15" />
+                      <label className="text-sm font-medium leading-none text-muted-foreground">
+                        Qdrant URL
+                      </label>
+                      <Input
+                        defaultValue="http://localhost:6333"
+                        disabled
+                        className="bg-muted/15"
+                      />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium leading-none text-muted-foreground">Memgraph (Neo4j) URI</label>
-                      <Input defaultValue="bolt://localhost:7687" disabled className="bg-muted/15" />
+                      <label className="text-sm font-medium leading-none text-muted-foreground">
+                        Memgraph (Neo4j) URI
+                      </label>
+                      <Input
+                        defaultValue="bolt://localhost:7687"
+                        disabled
+                        className="bg-muted/15"
+                      />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">These settings are currently loaded from .env.local and cannot be overridden at runtime.</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    These settings are currently loaded from .env.local and
+                    cannot be overridden at runtime.
+                  </p>
                 </CardContent>
               </Card>
             </>
           )}
-
         </div>
       </ScrollArea>
     </div>

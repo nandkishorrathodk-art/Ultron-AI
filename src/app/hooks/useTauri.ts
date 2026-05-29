@@ -328,8 +328,10 @@ export async function openDownloadsFolder(): Promise<boolean> {
   try {
     // Dynamic imports for Tauri plugins - only available in desktop context
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const opener = await (import("@tauri-apps/plugin-opener") as Promise<any>);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const path = await (import("@tauri-apps/api/path") as Promise<any>);
     const downloadsPath = await path.downloadDir();
     await opener.openPath(downloadsPath);

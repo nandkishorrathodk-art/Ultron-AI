@@ -8,7 +8,9 @@ interface MessagePart {
   text?: string;
   placeholder?: boolean;
   state?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any;
   toolCallId?: string;
   errorText?: string;

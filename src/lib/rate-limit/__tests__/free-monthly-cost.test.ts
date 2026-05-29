@@ -37,6 +37,7 @@ describe("free monthly cost limit", () => {
         createRedisClient: mockCreateRedisClient,
       }));
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       isolatedModule = require("../free-monthly-cost");
     });
 

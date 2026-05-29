@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Deterministic Vulnerability Validator
  * ═══════════════════════════════════════════════════════════════
@@ -19,11 +20,11 @@ import { Finding } from "../ptg";
 export interface ValidationResult {
   finding: Finding;
   validated: boolean;
-  confidence: number;        // 0.0 - 1.0
-  proof: string;             // PoC details
-  method: string;            // How it was validated
+  confidence: number; // 0.0 - 1.0
+  proof: string; // PoC details
+  method: string; // How it was validated
   reproductionSteps: string[];
-  screenshot?: string;       // Path to screenshot if applicable
+  screenshot?: string; // Path to screenshot if applicable
 }
 
 // ─── XSS Validation ───────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const XSS_PAYLOADS = [
 
 async function validateXSS(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const endpoint = finding.endpoint || "";
   const result: ValidationResult = {
@@ -88,7 +89,8 @@ async function validateXSS(
 
   if (!result.validated) {
     result.confidence = 0.3;
-    result.proof = "XSS payloads not reflected — may be stored XSS or DOM-based (requires browser)";
+    result.proof =
+      "XSS payloads not reflected — may be stored XSS or DOM-based (requires browser)";
   }
 
   return result;
@@ -98,7 +100,7 @@ async function validateXSS(
 
 async function validateSQLi(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const endpoint = finding.endpoint || "";
   const result: ValidationResult = {
@@ -157,12 +159,15 @@ async function validateSQLi(
 
     // Check for SQL error messages
     const errorCmd = `curl -s "${trueUrl}" 2>/dev/null | grep -ciE "(sql|mysql|postgresql|sqlite|oracle|syntax error|unterminated)"`;
-    const errorExec = await sandbox.commands.run(errorCmd, { timeoutMs: 10000 });
+    const errorExec = await sandbox.commands.run(errorCmd, {
+      timeoutMs: 10000,
+    });
 
     if (parseInt(errorExec.stdout?.trim() || "0") > 0) {
       result.validated = true;
       result.confidence = Math.max(result.confidence, 0.9);
-      result.proof += "\nSQL error messages detected in response — error-based SQLi confirmed";
+      result.proof +=
+        "\nSQL error messages detected in response — error-based SQLi confirmed";
       result.finding.validated = true;
     }
   } catch (err: any) {
@@ -171,7 +176,9 @@ async function validateSQLi(
 
   if (!result.validated) {
     result.confidence = 0.3;
-    result.proof = result.proof || "No differential response detected — may require more sophisticated blind testing";
+    result.proof =
+      result.proof ||
+      "No differential response detected — may require more sophisticated blind testing";
   }
 
   return result;
@@ -181,7 +188,7 @@ async function validateSQLi(
 
 async function validateSSRF(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const endpoint = finding.endpoint || "";
   const result: ValidationResult = {
@@ -203,7 +210,7 @@ async function validateSSRF(
     const internalTargets = [
       "http://127.0.0.1",
       "http://localhost",
-      "http://169.254.169.254/latest/meta-data/",  // AWS metadata
+      "http://169.254.169.254/latest/meta-data/", // AWS metadata
       "http://[::1]",
     ];
 
@@ -216,14 +223,20 @@ async function validateSSRF(
       const cmd = `curl -s -o /dev/null -w "%{http_code}:%{size_download}" "${testUrl}" 2>/dev/null`;
       const exec = await sandbox.commands.run(cmd, { timeoutMs: 10000 });
 
-      const [statusCode, size] = (exec.stdout?.trim() || "0:0").split(":").map(Number);
+      const [statusCode, size] = (exec.stdout?.trim() || "0:0")
+        .split(":")
+        .map(Number);
 
       // If we get a 200 with content, the server might be fetching internal resources
       if (statusCode === 200 && size > 200) {
         // Double check: compare with a non-existent internal host
         const falseCmd = `curl -s -o /dev/null -w "%{http_code}:%{size_download}" "${endpoint}?url=${encodeURIComponent("http://192.168.255.255:1")}" 2>/dev/null`;
-        const falseExec = await sandbox.commands.run(falseCmd, { timeoutMs: 10000 });
-        const [falseStatus, falseSize] = (falseExec.stdout?.trim() || "0:0").split(":").map(Number);
+        const falseExec = await sandbox.commands.run(falseCmd, {
+          timeoutMs: 10000,
+        });
+        const [falseStatus, falseSize] = (falseExec.stdout?.trim() || "0:0")
+          .split(":")
+          .map(Number);
 
         if (size > falseSize * 2) {
           result.validated = true;
@@ -245,7 +258,9 @@ async function validateSSRF(
 
   if (!result.validated) {
     result.confidence = 0.3;
-    result.proof = result.proof || "SSRF not confirmed — server may not be proxying requests";
+    result.proof =
+      result.proof ||
+      "SSRF not confirmed — server may not be proxying requests";
   }
 
   return result;
@@ -255,7 +270,7 @@ async function validateSSRF(
 
 async function validateRCE(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const result: ValidationResult = {
     finding: { ...finding },
@@ -267,12 +282,13 @@ async function validateRCE(
   };
 
   // RCE is already confirmed if we got shell output from exploit
-  if (finding.raw_output && (
-    finding.raw_output.includes("uid=") ||
-    finding.raw_output.includes("root:") ||
-    finding.raw_output.includes("Linux ") ||
-    finding.raw_output.includes("Windows ")
-  )) {
+  if (
+    finding.raw_output &&
+    (finding.raw_output.includes("uid=") ||
+      finding.raw_output.includes("root:") ||
+      finding.raw_output.includes("Linux ") ||
+      finding.raw_output.includes("Windows "))
+  ) {
     result.validated = true;
     result.confidence = 0.95;
     result.proof = `RCE confirmed — OS fingerprint detected in output: ${finding.raw_output.slice(0, 200)}`;
@@ -283,7 +299,8 @@ async function validateRCE(
     result.finding.validated = true;
   } else {
     result.confidence = 0.5;
-    result.proof = "RCE claimed but no OS fingerprint found — needs manual verification";
+    result.proof =
+      "RCE claimed but no OS fingerprint found — needs manual verification";
   }
 
   return result;
@@ -293,7 +310,7 @@ async function validateRCE(
 
 async function validatePathTraversal(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const endpoint = finding.endpoint || "";
   const result: ValidationResult = {
@@ -350,7 +367,8 @@ async function validatePathTraversal(
 
   if (!result.validated) {
     result.confidence = 0.3;
-    result.proof = "Known file markers not found — path traversal not confirmed";
+    result.proof =
+      "Known file markers not found — path traversal not confirmed";
   }
 
   return result;
@@ -360,7 +378,7 @@ async function validatePathTraversal(
 
 async function validateAuthBypass(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const endpoint = finding.endpoint || "";
   const result: ValidationResult = {
@@ -400,7 +418,9 @@ async function validateAuthBypass(
 
   if (!result.validated) {
     result.confidence = 0.3;
-    result.proof = result.proof || "Endpoint properly returns 401/403 — auth bypass not confirmed";
+    result.proof =
+      result.proof ||
+      "Endpoint properly returns 401/403 — auth bypass not confirmed";
   }
 
   return result;
@@ -414,7 +434,7 @@ async function validateAuthBypass(
  */
 export async function validateFinding(
   sandbox: Sandbox,
-  finding: Finding
+  finding: Finding,
 ): Promise<ValidationResult> {
   const description = finding.description.toLowerCase();
 
@@ -430,7 +450,7 @@ export async function validateFinding(
   if (
     description.includes("sql injection") ||
     description.includes("sqli") ||
-    description.includes("sql") && description.includes("injection")
+    (description.includes("sql") && description.includes("injection"))
   ) {
     return validateSQLi(sandbox, finding);
   }
@@ -488,9 +508,11 @@ export async function validateFinding(
 export async function validateFindings(
   sandbox: Sandbox,
   findings: Finding[],
-  confidenceThreshold: number = 0.5
+  confidenceThreshold: number = 0.5,
 ): Promise<{ validated: ValidationResult[]; unvalidated: ValidationResult[] }> {
-  console.log(`[Validator] Validating ${findings.length} findings (threshold: ${confidenceThreshold})`);
+  console.log(
+    `[Validator] Validating ${findings.length} findings (threshold: ${confidenceThreshold})`,
+  );
 
   const results: ValidationResult[] = [];
 
@@ -512,10 +534,16 @@ export async function validateFindings(
     results.push(result);
   }
 
-  const validated = results.filter((r) => r.validated && r.confidence >= confidenceThreshold);
-  const unvalidated = results.filter((r) => !r.validated || r.confidence < confidenceThreshold);
+  const validated = results.filter(
+    (r) => r.validated && r.confidence >= confidenceThreshold,
+  );
+  const unvalidated = results.filter(
+    (r) => !r.validated || r.confidence < confidenceThreshold,
+  );
 
-  console.log(`[Validator] Results: ${validated.length} validated, ${unvalidated.length} unvalidated`);
+  console.log(
+    `[Validator] Results: ${validated.length} validated, ${unvalidated.length} unvalidated`,
+  );
 
   return { validated, unvalidated };
 }

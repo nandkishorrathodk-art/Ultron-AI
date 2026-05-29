@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Reasoning Module v2.0 — Adaptive with Extended Thinking
  * ═══════════════════════════════════════════════════════════════
@@ -10,7 +11,12 @@
  */
 
 import { PTGNode, PenetrationTaskGraph, Finding } from "../ptg";
-import { AttackStrategy, adaptStrategy, FailedAttempt, detectBlockReason } from "../strategies";
+import {
+  AttackStrategy,
+  adaptStrategy,
+  FailedAttempt,
+  detectBlockReason,
+} from "../strategies";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText } from "ai";
 
@@ -26,7 +32,7 @@ interface ReasoningContext {
 interface ReasoningDecision {
   task: PTGNode;
   strategy: AttackStrategy;
-  reasoning: string;          // Why this task was selected
+  reasoning: string; // Why this task was selected
   extended_thinking?: string; // Chain-of-thought for complex decisions
 }
 
@@ -35,13 +41,16 @@ interface ReasoningDecision {
 /**
  * Determine if a task requires Extended Thinking for deeper reasoning.
  */
-function shouldUseExtendedThinking(task: PTGNode, graph: PenetrationTaskGraph): boolean {
+function shouldUseExtendedThinking(
+  task: PTGNode,
+  graph: PenetrationTaskGraph,
+): boolean {
   return (
-    task.phase === "exploit" ||              // Complex exploit selection
-    task.phase === "post" ||                 // Post-exploit planning
-    task.risk_level === "red" ||             // High-risk operations
-    task.retry_count > 0 ||                  // Retry after failure — need to adapt
-    graph.getParallelBranches().length > 3   // Coordinating many branches
+    task.phase === "exploit" || // Complex exploit selection
+    task.phase === "post" || // Post-exploit planning
+    task.risk_level === "red" || // High-risk operations
+    task.retry_count > 0 || // Retry after failure — need to adapt
+    graph.getParallelBranches().length > 3 // Coordinating many branches
   );
 }
 
@@ -54,7 +63,7 @@ function shouldUseExtendedThinking(task: PTGNode, graph: PenetrationTaskGraph): 
 async function llmReason(
   tasks: PTGNode[],
   context: ReasoningContext,
-  useExtendedThinking: boolean
+  useExtendedThinking: boolean,
 ): Promise<{ selectedIndex: number; reasoning: string; thinking?: string }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -75,23 +84,28 @@ async function llmReason(
     const taskList = tasks
       .map(
         (t, i) =>
-          `[${i}] Phase: ${t.phase} | Title: "${t.title}" | Priority: P${t.priority} | Risk: ${t.risk_level} | Retries: ${t.retry_count}`
+          `[${i}] Phase: ${t.phase} | Title: "${t.title}" | Priority: P${t.priority} | Risk: ${t.risk_level} | Retries: ${t.retry_count}`,
       )
       .join("\n");
 
-    const findingSummary = context.currentFindings.length > 0
-      ? context.currentFindings
-          .slice(-10)
-          .map((f) => `- [${f.severity}] ${f.description}`)
-          .join("\n")
-      : "No findings yet.";
+    const findingSummary =
+      context.currentFindings.length > 0
+        ? context.currentFindings
+            .slice(-10)
+            .map((f) => `- [${f.severity}] ${f.description}`)
+            .join("\n")
+        : "No findings yet.";
 
-    const failureSummary = context.failedAttempts.length > 0
-      ? context.failedAttempts
-          .slice(-5)
-          .map((f) => `- ${f.strategy.description}: ${f.error} (${f.blockReason})`)
-          .join("\n")
-      : "No failures.";
+    const failureSummary =
+      context.failedAttempts.length > 0
+        ? context.failedAttempts
+            .slice(-5)
+            .map(
+              (f) =>
+                `- ${f.strategy.description}: ${f.error} (${f.blockReason})`,
+            )
+            .join("\n")
+        : "No failures.";
 
     const prompt = `You are the Reasoning Module of an autonomous penetration testing AI.
 
@@ -122,7 +136,11 @@ SELECTED: [index]
 REASONING: [1-2 sentences explaining why]`;
 
     const result = await generateText({
-      model: provider(useExtendedThinking ? "anthropic/claude-sonnet-4-6" : "x-ai/grok-4.1-fast"),
+      model: provider(
+        useExtendedThinking
+          ? "anthropic/claude-sonnet-4-6"
+          : "x-ai/grok-4.1-fast",
+      ),
       prompt,
       maxTokens: 500,
     } as any);
@@ -139,7 +157,8 @@ REASONING: [1-2 sentences explaining why]`;
 
     return {
       selectedIndex,
-      reasoning: reasoningMatch?.[1]?.trim() || `LLM selected task ${selectedIndex}`,
+      reasoning:
+        reasoningMatch?.[1]?.trim() || `LLM selected task ${selectedIndex}`,
       thinking: useExtendedThinking ? text : undefined,
     };
   } catch (err: any) {
@@ -162,7 +181,7 @@ export async function decideNextTask(
     currentFindings: [],
     failedAttempts: [],
     sessionMode: "standard",
-  }
+  },
 ): Promise<ReasoningDecision | null> {
   const executableTasks = graph.getExecutableTasks();
 
@@ -192,8 +211,12 @@ export async function decideNextTask(
   }
 
   // Multiple tasks — use LLM reasoning
-  const useET = executableTasks.some((t) => shouldUseExtendedThinking(t, graph));
-  console.log(`[Reasoning] ${executableTasks.length} tasks available, using ${useET ? "Extended Thinking" : "standard"} reasoning`);
+  const useET = executableTasks.some((t) =>
+    shouldUseExtendedThinking(t, graph),
+  );
+  console.log(
+    `[Reasoning] ${executableTasks.length} tasks available, using ${useET ? "Extended Thinking" : "standard"} reasoning`,
+  );
 
   const decision = await llmReason(executableTasks, context, useET);
   const selectedTask = executableTasks[decision.selectedIndex];
@@ -212,16 +235,20 @@ export async function decideNextTask(
 
   // If this task has failed before, adapt the strategy
   if (selectedTask.retry_count > 0 && context.failedAttempts.length > 0) {
-    const relevantFailure = context.failedAttempts.find(
-      (f) => f.strategy.id.includes(selectedTask.task_id)
+    const relevantFailure = context.failedAttempts.find((f) =>
+      f.strategy.id.includes(selectedTask.task_id),
     );
     if (relevantFailure) {
       strategy = adaptStrategy(relevantFailure, selectedTask.retry_count);
-      console.log(`[Reasoning] Adapted strategy for retry: ${strategy.description}`);
+      console.log(
+        `[Reasoning] Adapted strategy for retry: ${strategy.description}`,
+      );
     }
   }
 
-  console.log(`[Reasoning] Selected: "${selectedTask.title}" (${selectedTask.phase}) — ${decision.reasoning}`);
+  console.log(
+    `[Reasoning] Selected: "${selectedTask.title}" (${selectedTask.phase}) — ${decision.reasoning}`,
+  );
 
   return {
     task: selectedTask,
@@ -239,11 +266,13 @@ export function analyzeFailure(
   error: string,
   stdout: string,
   stderr: string,
-  exitCode: number
+  exitCode: number,
 ): FailedAttempt {
   const blockReason = detectBlockReason(stdout, stderr, exitCode);
 
-  console.log(`[Reasoning] Failure analysis for "${task.title}": ${blockReason}`);
+  console.log(
+    `[Reasoning] Failure analysis for "${task.title}": ${blockReason}`,
+  );
 
   return {
     strategy: {

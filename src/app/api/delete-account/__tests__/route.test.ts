@@ -118,6 +118,7 @@ describe("POST /api/delete-account", () => {
         ],
       } as never);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await POST(request() as any);
 
     expect(response.status).toBe(200);
@@ -151,6 +152,7 @@ describe("POST /api/delete-account", () => {
       data: [{ id: "sub_1" }, { id: "sub_2" }],
     } as never);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await POST(request() as any);
 
     expect(response.status).toBe(200);
@@ -195,6 +197,7 @@ describe("POST /api/delete-account", () => {
         ],
       } as never);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await POST(request() as any);
 
     expect(response.status).toBe(200);
@@ -229,6 +232,7 @@ describe("POST /api/delete-account", () => {
         ],
       } as never);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response = await POST(request() as any);
     const body = await response.json();
 

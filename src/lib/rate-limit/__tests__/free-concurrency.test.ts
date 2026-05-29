@@ -20,6 +20,7 @@ describe("acquireFreeRunConcurrencyLock", () => {
         createRedisClient: mockCreateRedisClient,
       }));
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       isolatedModule = require("../free-concurrency");
     });
 

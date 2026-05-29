@@ -16,6 +16,7 @@ import { stringifyRedactedError } from "@/lib/utils/error-redaction";
 /**
  * Type guard to check if a message part is a file part
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const isFilePart = (part: any): part is FileMessagePart =>
   part && typeof part === "object" && part.type === "file";
 
@@ -23,10 +24,12 @@ export const isFilePart = (part: any): part is FileMessagePart =>
  * Extracts file IDs from message parts
  */
 export const extractFileIdsFromParts = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: UIMessagePart<any, any>[],
 ): Id<"files">[] =>
   parts
     .filter(isFilePart)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((part: any) => part.fileId as Id<"files">)
     .filter(Boolean);
 

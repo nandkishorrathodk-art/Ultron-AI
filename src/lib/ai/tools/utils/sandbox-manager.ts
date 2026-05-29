@@ -50,6 +50,7 @@ export class DefaultSandboxManager implements SandboxManager {
   }
 
   getSandboxType(toolName: string): SandboxType | undefined {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (!SANDBOX_ENVIRONMENT_TOOLS.includes(toolName as any)) {
       return undefined;
     }

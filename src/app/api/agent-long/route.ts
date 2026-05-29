@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const */
 import { NextRequest, NextResponse } from "next/server";
 import { tasks, auth } from "@trigger.dev/sdk";
 import type { agentLongTask } from "@/trigger/agent-long";

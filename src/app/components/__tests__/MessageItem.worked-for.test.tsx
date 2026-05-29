@@ -3,6 +3,7 @@ import { MessageItem } from "../MessageItem";
 import type { ChatMessage, ChatMode, ChatStatus } from "@/types";
 
 jest.mock("../MessagePartHandler", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   MessagePartHandler: ({ part }: { part: any }) => (
     <div data-testid={`part-${part.type}`}>
       {part.text ?? part.input ?? part.type}

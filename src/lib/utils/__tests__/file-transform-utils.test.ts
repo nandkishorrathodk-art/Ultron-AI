@@ -17,6 +17,7 @@ const makeMessage = (part: Record<string, unknown>) =>
       role: "user",
       parts: [{ type: "text", text: "what is this?" }, part],
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ] as any;
 
 const responseLike = ({
@@ -26,6 +27,7 @@ const responseLike = ({
 }: {
   status?: number;
   headers?: Record<string, string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body?: { getReader: () => { read: () => Promise<any> } } | null;
 }) =>
   ({
@@ -74,6 +76,7 @@ describe("processMessageFiles image size guards", () => {
       }
 
       throw new Error("Range probe should not run when HEAD has a size");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
 
     const result = await processMessageFiles(
@@ -112,6 +115,7 @@ describe("processMessageFiles image size guards", () => {
         status: 206,
         body: streamBody(new Uint8Array(5 * 1024 * 1024 + 1)),
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
 
     const result = await processMessageFiles(
@@ -140,6 +144,7 @@ describe("processMessageFiles image size guards", () => {
       return responseLike({
         headers: { "content-length": String(2 * 1024 * 1024) },
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
 
     const result = await processMessageFiles(
@@ -166,6 +171,7 @@ describe("processMessageFiles image size guards", () => {
 
   it("does not probe or convert inline URL file parts without fileId", async () => {
     const fetchSpy = jest.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     global.fetch = fetchSpy as any;
 
     const result = await processMessageFiles(
@@ -193,6 +199,7 @@ describe("processMessageFiles image size guards", () => {
     mockConvexAction.mockResolvedValue(["https://storage.example/large.png"]);
     global.fetch = jest.fn(async () => {
       throw new Error("Agent image with declared size should not be probed");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
 
     const result = await processMessageFiles(
@@ -254,6 +261,7 @@ describe("processMessageFiles image size guards", () => {
       ok: true,
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
     }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     global.fetch = fetchSpy as any;
 
     const result = await processMessageFiles(

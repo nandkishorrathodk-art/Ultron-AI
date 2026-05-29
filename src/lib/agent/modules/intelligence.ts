@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Intelligence Module v2.0 — Real RAG + MITRE + Exploit Ranking
  * ═══════════════════════════════════════════════════════════════
@@ -31,7 +32,7 @@ export interface CVERecommendation {
   epss_score: number;
   exploit_available: boolean;
   metasploit_module?: string;
-  relevance_score: number;    // Qdrant similarity score
+  relevance_score: number; // Qdrant similarity score
 }
 
 export interface MITRETechnique {
@@ -50,23 +51,23 @@ export interface AttackPath {
 
 export interface ExploitCandidate {
   cve_id: string;
-  tool: string;              // Which tool to use (metasploit, sqlmap, etc.)
-  command: string;           // Suggested command
+  tool: string; // Which tool to use (metasploit, sqlmap, etc.)
+  command: string; // Suggested command
   risk_level: "green" | "yellow" | "red";
   success_probability: number; // Estimated 0-1
-  priority: number;          // Ranking among candidates
+  priority: number; // Ranking among candidates
 }
 
 // ─── MITRE ATT&CK Mapping ────────────────────────────────────────────────────
 
 const MITRE_MAP: Record<string, MITRETechnique> = {
-  "T1190": {
+  T1190: {
     id: "T1190",
     name: "Exploit Public-Facing Application",
     tactic: "Initial Access",
     url: "https://attack.mitre.org/techniques/T1190/",
   },
-  "T1046": {
+  T1046: {
     id: "T1046",
     name: "Network Service Discovery",
     tactic: "Discovery",
@@ -78,7 +79,7 @@ const MITRE_MAP: Record<string, MITRETechnique> = {
     tactic: "Reconnaissance",
     url: "https://attack.mitre.org/techniques/T1595/002/",
   },
-  "T1059": {
+  T1059: {
     id: "T1059",
     name: "Command and Scripting Interpreter",
     tactic: "Execution",
@@ -96,61 +97,61 @@ const MITRE_MAP: Record<string, MITRETechnique> = {
     tactic: "Execution",
     url: "https://attack.mitre.org/techniques/T1059/007/",
   },
-  "T1078": {
+  T1078: {
     id: "T1078",
     name: "Valid Accounts",
     tactic: "Defense Evasion",
     url: "https://attack.mitre.org/techniques/T1078/",
   },
-  "T1068": {
+  T1068: {
     id: "T1068",
     name: "Exploitation for Privilege Escalation",
     tactic: "Privilege Escalation",
     url: "https://attack.mitre.org/techniques/T1068/",
   },
-  "T1003": {
+  T1003: {
     id: "T1003",
     name: "OS Credential Dumping",
     tactic: "Credential Access",
     url: "https://attack.mitre.org/techniques/T1003/",
   },
-  "T1021": {
+  T1021: {
     id: "T1021",
     name: "Remote Services",
     tactic: "Lateral Movement",
     url: "https://attack.mitre.org/techniques/T1021/",
   },
-  "T1018": {
+  T1018: {
     id: "T1018",
     name: "Remote System Discovery",
     tactic: "Discovery",
     url: "https://attack.mitre.org/techniques/T1018/",
   },
-  "T1090": {
+  T1090: {
     id: "T1090",
     name: "Proxy",
     tactic: "Command and Control",
     url: "https://attack.mitre.org/techniques/T1090/",
   },
-  "T1005": {
+  T1005: {
     id: "T1005",
     name: "Data from Local System",
     tactic: "Collection",
     url: "https://attack.mitre.org/techniques/T1005/",
   },
-  "T1083": {
+  T1083: {
     id: "T1083",
     name: "File and Directory Discovery",
     tactic: "Discovery",
     url: "https://attack.mitre.org/techniques/T1083/",
   },
-  "T1592": {
+  T1592: {
     id: "T1592",
     name: "Gather Victim Host Information",
     tactic: "Reconnaissance",
     url: "https://attack.mitre.org/techniques/T1592/",
   },
-  "T1590": {
+  T1590: {
     id: "T1590",
     name: "Gather Victim Network Information",
     tactic: "Reconnaissance",
@@ -174,19 +175,19 @@ const MITRE_MAP: Record<string, MITRETechnique> = {
     tactic: "Persistence",
     url: "https://attack.mitre.org/techniques/T1505/003/",
   },
-  "T1528": {
+  T1528: {
     id: "T1528",
     name: "Steal Application Access Token",
     tactic: "Credential Access",
     url: "https://attack.mitre.org/techniques/T1528/",
   },
-  "T1557": {
+  T1557: {
     id: "T1557",
     name: "Adversary-in-the-Middle",
     tactic: "Credential Access",
     url: "https://attack.mitre.org/techniques/T1557/",
   },
-  "T1574": {
+  T1574: {
     id: "T1574",
     name: "Hijack Execution Flow",
     tactic: "Defense Evasion",
@@ -199,7 +200,7 @@ const MITRE_MAP: Record<string, MITRETechnique> = {
  */
 function getMITRETechniques(
   phase: string,
-  serviceInfo?: string
+  serviceInfo?: string,
 ): MITRETechnique[] {
   const phaseMap: Record<string, string[]> = {
     recon: ["T1595.002", "T1592", "T1590", "T1590.002"],
@@ -218,7 +219,10 @@ function getMITRETechniques(
 
 // ─── Knowledge Graph Query ────────────────────────────────────────────────────
 
-async function queryKGPaths(sessionId: string, hostIp?: string): Promise<AttackPath[]> {
+async function queryKGPaths(
+  sessionId: string,
+  hostIp?: string,
+): Promise<AttackPath[]> {
   try {
     const session = kgClient.session();
     try {
@@ -233,7 +237,7 @@ async function queryKGPaths(sessionId: string, hostIp?: string): Promise<AttackP
           length(path) AS hops
         LIMIT 20
         `,
-        { hostIp: hostIp || null }
+        { hostIp: hostIp || null },
       );
 
       return result.records.map((record) => ({
@@ -266,7 +270,7 @@ export async function gatherIntelligence(
     sessionId?: string;
     port?: number;
     protocol?: string;
-  } = {}
+  } = {},
 ): Promise<IntelligenceContext> {
   console.log(`[Intelligence] Gathering intelligence for: "${serviceInfo}"`);
 
@@ -297,14 +301,21 @@ export async function gatherIntelligence(
       return scoreB - scoreA;
     });
 
-    console.log(`[Intelligence] Found ${cve_recommendations.length} CVE recommendations`);
+    console.log(
+      `[Intelligence] Found ${cve_recommendations.length} CVE recommendations`,
+    );
   } catch (err: any) {
     console.log(`[Intelligence] RAG search failed: ${err.message}`);
   }
 
   // 2. MITRE ATT&CK techniques
-  const mitre_techniques = getMITRETechniques(options.phase || "recon", serviceInfo);
-  console.log(`[Intelligence] Mapped ${mitre_techniques.length} MITRE techniques`);
+  const mitre_techniques = getMITRETechniques(
+    options.phase || "recon",
+    serviceInfo,
+  );
+  console.log(
+    `[Intelligence] Mapped ${mitre_techniques.length} MITRE techniques`,
+  );
 
   // 3. Knowledge Graph paths
   const kg_paths = await queryKGPaths(options.sessionId || "", options.hostIp);
@@ -319,7 +330,12 @@ export async function gatherIntelligence(
       command: cve.metasploit_module
         ? `msfconsole -q -x "use ${cve.metasploit_module}; set RHOSTS TARGET; exploit"`
         : `searchsploit "${cve.cve_id}"`,
-      risk_level: cve.cvss_score >= 9.0 ? "red" as const : cve.cvss_score >= 7.0 ? "yellow" as const : "green" as const,
+      risk_level:
+        cve.cvss_score >= 9.0
+          ? ("red" as const)
+          : cve.cvss_score >= 7.0
+            ? ("yellow" as const)
+            : ("green" as const),
       success_probability: Math.min(cve.epss_score * 2, 0.95), // Scale up EPSS
       priority: i + 1,
     }));
@@ -329,7 +345,7 @@ export async function gatherIntelligence(
     serviceInfo,
     cve_recommendations,
     mitre_techniques,
-    kg_paths
+    kg_paths,
   );
 
   return {
@@ -345,7 +361,7 @@ function buildContextSummary(
   serviceInfo: string,
   cves: CVERecommendation[],
   mitre: MITRETechnique[],
-  kgPaths: AttackPath[]
+  kgPaths: AttackPath[],
 ): string {
   const parts: string[] = [`Service: ${serviceInfo}`];
 
@@ -353,13 +369,15 @@ function buildContextSummary(
     parts.push(`\nTop CVEs:`);
     for (const cve of cves.slice(0, 5)) {
       parts.push(
-        `- ${cve.cve_id} (CVSS: ${cve.cvss_score}, EPSS: ${cve.epss_score}) ${cve.exploit_available ? "⚡ Exploit available" : ""}`
+        `- ${cve.cve_id} (CVSS: ${cve.cvss_score}, EPSS: ${cve.epss_score}) ${cve.exploit_available ? "⚡ Exploit available" : ""}`,
       );
     }
   }
 
   if (mitre.length > 0) {
-    parts.push(`\nMITRE Techniques: ${mitre.map((m) => `${m.id} (${m.name})`).join(", ")}`);
+    parts.push(
+      `\nMITRE Techniques: ${mitre.map((m) => `${m.id} (${m.name})`).join(", ")}`,
+    );
   }
 
   if (kgPaths.length > 0) {

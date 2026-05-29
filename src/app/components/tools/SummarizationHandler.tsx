@@ -5,6 +5,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 
 interface SummarizationHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   partIndex: number;
 }

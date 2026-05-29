@@ -72,7 +72,9 @@ interface ToolPart {
   type: string;
   toolCallId?: string;
   state?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any;
 }
 
@@ -82,7 +84,9 @@ interface ToolPart {
  */
 const buildPlaceholderFromParts = (
   toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output: any,
 ): string => {
   switch (toolName) {
@@ -112,6 +116,7 @@ const buildPlaceholderFromParts = (
         count = String(output.length);
         const fileSet = new Set(
           output
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .map((m: any) => m.file ?? m.path ?? m.filename)
             .filter(Boolean),
         );
@@ -677,6 +682,7 @@ export function filterEmptyAssistantMessages<T extends Record<string, unknown>>(
       return true;
     }
     if (content.length === 0) return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return content.some((part: any) => {
       if (part.type === "text") return !!part.text?.trim();
       // Reasoning parts are stripped by the AI SDK before the HTTP request,
@@ -735,13 +741,17 @@ export type AnthropicPromptRepairTelemetry =
 const getContentTypes = (content: unknown): string[] | undefined => {
   if (typeof content === "string") return ["text"];
   if (!Array.isArray(content)) return undefined;
-  return content
-    .map((part: any) => part?.type)
-    .filter((type: unknown): type is string => typeof type === "string");
+  return (
+    content
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((part: any) => part?.type)
+      .filter((type: unknown): type is string => typeof type === "string")
+  );
 };
 
 const hasDanglingAssistantToolCall = (content: unknown): boolean => {
   if (!Array.isArray(content)) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return content.some((part: any) => part?.type === "tool-call");
 };
 
@@ -749,6 +759,7 @@ const hasUsefulAssistantContent = (content: unknown): boolean => {
   if (typeof content === "string") return content.trim().length > 0;
   if (!Array.isArray(content)) return content != null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return content.some((part: any) => {
     if (part?.type === "text") return !!part.text?.trim();
     if (part?.type === "reasoning" || part?.type === "redacted-reasoning") {

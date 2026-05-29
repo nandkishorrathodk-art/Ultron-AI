@@ -5,6 +5,7 @@ import { ChatMessage } from "@/types/chat";
  * Checks if a part is a completed reasoning block with redacted text.
  * These should be filtered out entirely as they provide no value when saved.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isRedactedReasoningPart = (part: Record<string, any>): boolean => {
   return (
     part.type === "reasoning" &&
@@ -21,6 +22,7 @@ const isRedactedReasoningPart = (part: Record<string, any>): boolean => {
  * passed back in subsequent requests for function calling to work correctly.
  * Stripping providerMetadata causes "missing thought_signature" 400 errors.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const filterRedactedReasoning = <T extends { parts?: any[] }>(
   message: T,
 ): T => {
@@ -36,9 +38,13 @@ export const filterRedactedReasoning = <T extends { parts?: any[] }>(
 interface BaseToolPart {
   type: string;
   toolCallId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   state: UIToolInvocation<any>["state"];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   result?: any; // legacy
 }
 
@@ -77,6 +83,7 @@ interface DataPart {
   type: string;
   data?: {
     toolCallId: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
   };
 }
@@ -129,12 +136,14 @@ export const normalizeMessages = (
       return message;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const processedParts: any[] = [];
     let messageChanged = false;
 
     // Collect terminal output from data-terminal parts (only terminal tools use data streaming)
     const terminalDataMap = new Map<string, string>();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     message.parts.forEach((part: any) => {
       const dataPart = part as DataPart;
 
@@ -152,6 +161,7 @@ export const normalizeMessages = (
 
     // Process each part, transform incomplete tools, filter out data-terminal parts
     // NOTE: We intentionally keep providerMetadata - Gemini requires thought_signature for tool calls
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     message.parts.forEach((part: any) => {
       const toolPart = part as BaseToolPart;
 

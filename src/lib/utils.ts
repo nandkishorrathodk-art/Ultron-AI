@@ -8,6 +8,7 @@ import { Id } from "@/convex/_generated/dataModel";
 export interface MessageRecord {
   id: string;
   role: "user" | "assistant" | "system";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: UIMessagePart<any, any>[];
   source_message_id?: string;
   feedback?: {
@@ -55,6 +56,7 @@ export function convertToUIMessages(messages: MessageRecord[]): ChatMessage[] {
     role: message.role,
     // Sanitize parts: remove any old URLs that may be stored in database
     // URLs expire, so we always fetch fresh ones via fileId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     parts: message.parts.map((part: any) => {
       if (part.type === "file" && part.url) {
         const { url, ...partWithoutUrl } = part;

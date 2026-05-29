@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Embedding Pipeline — Real Vector Generation
  * ═══════════════════════════════════════════════════════════════
@@ -25,7 +26,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EMBEDDING_KEY;
 
   if (!apiKey) {
-    console.warn("[Embeddings] No OPENAI_API_KEY found — using deterministic fallback");
+    console.warn(
+      "[Embeddings] No OPENAI_API_KEY found — using deterministic fallback",
+    );
     return deterministicFallback(text);
   }
 
@@ -51,7 +54,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     const data = await response.json();
     return data.data[0].embedding as number[];
   } catch (error: any) {
-    console.error(`[Embeddings] Failed to generate embedding: ${error.message}`);
+    console.error(
+      `[Embeddings] Failed to generate embedding: ${error.message}`,
+    );
     return deterministicFallback(text);
   }
 }
@@ -61,12 +66,14 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * Automatically splits into batches of MAX_BATCH_SIZE.
  */
 export async function generateEmbeddingsBatch(
-  texts: string[]
+  texts: string[],
 ): Promise<number[][]> {
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_EMBEDDING_KEY;
 
   if (!apiKey) {
-    console.warn("[Embeddings] No OPENAI_API_KEY — batch using deterministic fallback");
+    console.warn(
+      "[Embeddings] No OPENAI_API_KEY — batch using deterministic fallback",
+    );
     return texts.map((t) => deterministicFallback(t));
   }
 
@@ -113,7 +120,7 @@ export async function generateEmbeddingsBatch(
  */
 export async function buildSearchEmbedding(
   serviceInfo: string,
-  context?: { port?: number; protocol?: string; os?: string }
+  context?: { port?: number; protocol?: string; os?: string },
 ): Promise<number[]> {
   const parts = [serviceInfo];
   if (context?.port) parts.push(`port ${context.port}`);
@@ -145,7 +152,9 @@ function deterministicFallback(text: string): number[] {
   }
 
   // L2 normalize
-  const magnitude = Math.sqrt(vector.reduce((sum: number, v: number) => sum + v * v, 0));
+  const magnitude = Math.sqrt(
+    vector.reduce((sum: number, v: number) => sum + v * v, 0),
+  );
   if (magnitude > 0) {
     for (let i = 0; i < EMBEDDING_DIM; i++) {
       vector[i] /= magnitude;

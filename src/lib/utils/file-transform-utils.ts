@@ -65,8 +65,10 @@ const validateResolvedFileUrl = (
 };
 
 const containsPdfAttachments = (messages: UIMessage[]): boolean =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages.some((msg: any) =>
     (msg.parts || []).some(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (part: any) => isFilePart(part) && part.mediaType === "application/pdf",
     ),
   );
@@ -217,11 +219,14 @@ const imageOmittedText = (
 const replaceOversizedImageParts = (messages: UIMessage[]) => {
   messages.forEach((msg) => {
     if (!msg.parts) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     msg.parts = (msg.parts as any[]).map((part) => {
       if (
         !isFilePart(part) ||
         !isSupportedImageMediaType(part.mediaType ?? "") ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         typeof (part as any).size !== "number" ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part as any).size <= MAX_IMAGE_SIZE
       ) {
         return part;
@@ -229,7 +234,9 @@ const replaceOversizedImageParts = (messages: UIMessage[]) => {
       return {
         type: "text",
         text: imageOmittedText(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (part as any).name,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (part as any).size,
           MAX_IMAGE_SIZE,
         ),
@@ -251,6 +258,7 @@ const collectFilesToProcess = (
   messages.forEach((msg, messageIndex) => {
     if (!msg.parts) return;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (msg.parts as any[]).forEach((part, partIndex) => {
       if (!isFilePart(part)) return;
 
@@ -259,6 +267,7 @@ const collectFilesToProcess = (
         // File IDs are storage references, not proof that a request-supplied URL
         // is safe. Clear any client URL so every server-side fetch/download uses
         // an owner-checked URL resolved from storage below.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (part as any).url;
       }
 
@@ -361,6 +370,7 @@ const applyUrlsToFileParts = async (
     const firstPart = file.positions.length
       ? (messages[file.positions[0].messageIndex].parts![
           file.positions[0].partIndex
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any)
       : null;
     const isSupportedImage = isSupportedImageMediaType(file.mediaType ?? "");
@@ -404,6 +414,7 @@ const applyUrlsToFileParts = async (
     }
 
     file.positions.forEach(({ messageIndex, partIndex }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filePart = messages[messageIndex].parts![partIndex] as any;
       if (filePart.type !== "file") return;
       if (shouldOmitImage && mode !== "agent") {
@@ -430,6 +441,7 @@ const removeFilePartsWithoutUrls = (messages: UIMessage[]) => {
   messages.forEach((msg) => {
     if (!msg.parts) return;
     msg.parts = msg.parts.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (part: any) => part?.type !== "file" || !!part.url,
     );
   });
@@ -554,6 +566,7 @@ const filterNonMediaFileIds = (
 
   messages.forEach((msg) => {
     if (!msg.parts) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (msg.parts as any[]).forEach((part) => {
       if (part.type === "file" && part.fileId && isMediaFile(part.mediaType)) {
         mediaFileIds.add(part.fileId);
@@ -637,6 +650,7 @@ const addDocumentContentToMessages = async (
       const documents: string[] = [];
       const fileIdsToRemove = new Set<string>();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (msg.parts as any[]).forEach((part) => {
         if (part.type !== "file" || !part.fileId) return;
 
@@ -657,6 +671,7 @@ const addDocumentContentToMessages = async (
           text: `<documents>\n${documents.join("\n\n")}\n</documents>`,
         });
         msg.parts = msg.parts.filter(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (part: any) =>
             part.type !== "file" || !fileIdsToRemove.has(part.fileId),
         );
@@ -679,6 +694,7 @@ const pruneFileParts = (
   messages.forEach((msg) => {
     if (!msg.parts) return;
     msg.parts = msg.parts.filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (part: any) => part?.type !== "file" || shouldKeep(part.mediaType),
     );
   });
@@ -687,6 +703,7 @@ const pruneFileParts = (
 const removeNonMediaAndOversizedImageFileParts = (messages: UIMessage[]) => {
   messages.forEach((msg) => {
     if (!msg.parts) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     msg.parts = msg.parts.filter((part: any) => {
       if (part?.type !== "file") return true;
       if (!isSupportedImageMediaType(part.mediaType ?? "")) return false;

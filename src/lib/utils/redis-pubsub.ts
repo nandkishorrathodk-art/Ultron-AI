@@ -16,6 +16,7 @@ export const createRedisSubscriber = async (): Promise<RedisClient | null> => {
 
   try {
     const subscriber = createClient({ url: redisUrl });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     subscriber.on("error", (err: any) => {
       console.error("Redis subscriber error:", err);
     });

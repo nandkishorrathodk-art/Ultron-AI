@@ -100,6 +100,7 @@ export const collectSandboxFiles = (
     if (msg.role !== "user" || !msg.parts) return;
 
     const tags: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (msg.parts as any[]).forEach((part) => {
       if (part?.type !== "file") return;
 
@@ -143,11 +144,13 @@ export const collectSandboxFiles = (
     });
 
     if (tags.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (msg.parts as any[]).push({ type: "text", text: tags.join("\n") });
     }
   });
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const stripLocalDesktopSourcePaths = <T extends { parts?: any[] }>(
   messages: T[],
 ): T[] =>
@@ -166,6 +169,7 @@ export const stripLocalDesktopSourcePaths = <T extends { parts?: any[] }>(
   });
 
 export const hasLocalDesktopSourcePaths = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages: Array<{ parts?: any[] }>,
 ): boolean =>
   messages.some((message) =>
@@ -187,6 +191,7 @@ const replaceAllPathOccurrences = (
     value,
   );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const rewriteSandboxFilePathsInMessages = <T extends { parts?: any[] }>(
   messages: T[],
   rewrites: SandboxFilePathRewrite[],
@@ -226,6 +231,7 @@ export const prepareLocalDesktopAttachmentsForTrigger = (
     if (message.role !== "user" || !message.parts) return;
 
     const tags: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (message.parts as any[]).forEach((part) => {
       if (
         part?.type !== "file" ||
@@ -251,6 +257,7 @@ export const prepareLocalDesktopAttachmentsForTrigger = (
     });
 
     if (tags.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (preparedMessages[messageIndex].parts as any[]).push({
         type: "text",
         text: tags.join("\n"),
@@ -272,6 +279,7 @@ export const prepareLocalDesktopAttachmentsForTrigger = (
  * Works with both E2B and CentrifugoSandbox
  */
 const downloadFileToSandbox = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sandbox: any,
   url: string,
   localPath: string,
@@ -348,6 +356,7 @@ const downloadFileToSandbox = async (
 };
 
 const copyLocalFileToSandbox = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sandbox: any,
   sourcePath: string,
   localPath: string,
@@ -376,6 +385,7 @@ const shouldTryUploadPathFallback = (
 };
 
 const resolveWritableUploadFallbackPath = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sandbox: any,
   originalLocalPath: string,
 ): Promise<string | null> => {
@@ -404,6 +414,7 @@ const resolveWritableUploadFallbackPath = async (
 };
 
 const stageSandboxFile = async (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sandbox: any,
   file: SandboxFile,
 ): Promise<SandboxFilePathRewrite | null> => {
@@ -506,6 +517,7 @@ const redactSandboxUploadError = (
  */
 export const uploadSandboxFiles = async (
   sandboxFiles: SandboxFile[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ensureSandbox: () => Promise<any>,
 ): Promise<SandboxUploadResult> => {
   if (sandboxFiles.length === 0) return { failedCount: 0, pathRewrites: [] };
@@ -517,6 +529,7 @@ export const uploadSandboxFiles = async (
     urlCount: sandboxFiles.filter((file) => file.kind === "url").length,
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let sandbox: any;
   try {
     sandbox = await ensureSandbox();

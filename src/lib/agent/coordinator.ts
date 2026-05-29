@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-const */
 /**
  * Autonomous Pentest Coordinator System (THE BRAIN)
  * ═══════════════════════════════════════════════════════════════
@@ -43,7 +44,8 @@ import {
   updateAgentSession,
 } from "../session-tracker";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL || "";
+const convexUrl =
+  process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_URL || "";
 const convexClient = convexUrl ? new ConvexHttpClient(convexUrl) : null;
 
 export interface CoordinatorOptions {
@@ -55,7 +57,14 @@ export interface CoordinatorOptions {
 }
 
 export interface CoordinatorProgressUpdate {
-  type: "status" | "task_start" | "task_complete" | "task_fail" | "hitl_waiting" | "hitl_resume" | "chain_detected";
+  type:
+    | "status"
+    | "task_start"
+    | "task_complete"
+    | "task_fail"
+    | "hitl_waiting"
+    | "hitl_resume"
+    | "chain_detected";
   message: string;
   taskId?: string;
   taskTitle?: string;
@@ -70,7 +79,7 @@ export class PentestCoordinator {
   private mode: "standard" | "ctf" | "bug_bounty" | "continuous";
   private maxIterations: number;
   private onProgress?: (update: CoordinatorProgressUpdate) => void;
-  
+
   private ptg: PenetrationTaskGraph;
   private failedAttemptsHistory: FailedAttempt[] = [];
   private iterations = 0;
@@ -82,7 +91,7 @@ export class PentestCoordinator {
     this.mode = options.mode;
     this.maxIterations = options.maxIterations || 48; // XBOW-level 48-step chains support
     this.onProgress = options.onProgress;
-    
+
     this.ptg = new PenetrationTaskGraph();
   }
 
@@ -96,8 +105,16 @@ export class PentestCoordinator {
     this.isRunning = true;
     this.iterations = 0;
 
-    this.emit("status", `Initializing autonomous session for target(s): ${this.targetScope.join(", ")}`);
-    addWorklogEntry(this.sessionId, "flow_start", `Autonomous XBOW-Class Pentest Started on ${this.targetScope.join(", ")}`, "running");
+    this.emit(
+      "status",
+      `Initializing autonomous session for target(s): ${this.targetScope.join(", ")}`,
+    );
+    addWorklogEntry(
+      this.sessionId,
+      "flow_start",
+      `Autonomous XBOW-Class Pentest Started on ${this.targetScope.join(", ")}`,
+      "running",
+    );
 
     // 1. Initialize PTG from template
     for (const target of this.targetScope) {
@@ -108,13 +125,25 @@ export class PentestCoordinator {
     // Sync initial state to Convex
     await this.syncState("active");
     this.emit("status", "Attack plan constructed successfully");
-    addWorklogEntry(this.sessionId, "flow_start", "Attack plan constructed successfully", "success");
+    addWorklogEntry(
+      this.sessionId,
+      "flow_start",
+      "Attack plan constructed successfully",
+      "success",
+    );
 
     try {
       // 2. Core Autonomous Loop
-      while (this.ptg.hasActiveTasks() && !this.ptg.isComplete() && this.iterations < this.maxIterations) {
+      while (
+        this.ptg.hasActiveTasks() &&
+        !this.ptg.isComplete() &&
+        this.iterations < this.maxIterations
+      ) {
         this.iterations++;
-        this.emit("status", `Step ${this.iterations}/${this.maxIterations}: Selecting next optimal action`);
+        this.emit(
+          "status",
+          `Step ${this.iterations}/${this.maxIterations}: Selecting next optimal action`,
+        );
 
         // A. Select next task via LLM reasoning
         const context = {
@@ -135,8 +164,18 @@ export class PentestCoordinator {
         // B. Start task
         this.ptg.startTask(task.task_id);
         await this.syncState("active");
-        addWorklogEntry(this.sessionId, "command", `Starting task: ${task.title}`, "running");
-        this.emit("task_start", `Starting task: "${task.title}"`, task.task_id, task.title);
+        addWorklogEntry(
+          this.sessionId,
+          "command",
+          `Starting task: ${task.title}`,
+          "running",
+        );
+        this.emit(
+          "task_start",
+          `Starting task: "${task.title}"`,
+          task.task_id,
+          task.title,
+        );
 
         // C. Log action to audit trail
         await this.logAudit("tool_invocation", {
@@ -160,31 +199,46 @@ export class PentestCoordinator {
 
         // F. Handle HITL Gate for high-risk operations
         if (generated.riskLevel === "red") {
-          this.emit("hitl_waiting", `Task requires Human Approval (High Risk): ${task.title}`, task.task_id, task.title);
-          
+          this.emit(
+            "hitl_waiting",
+            `Task requires Human Approval (High Risk): ${task.title}`,
+            task.task_id,
+            task.title,
+          );
+
           if (convexClient) {
             try {
-              const approvalId = await convexClient.mutation(api.hitl.requestApproval, {
-                sessionId: this.sessionId as any,
-                taskId: task.task_id,
-                riskLevel: "red",
-                command: finalCommand,
-                justification: generated.justification || "Requires administrative or dangerous command execution",
-              });
+              const approvalId = await convexClient.mutation(
+                api.hitl.requestApproval,
+                {
+                  sessionId: this.sessionId as any,
+                  taskId: task.task_id,
+                  riskLevel: "red",
+                  command: finalCommand,
+                  justification:
+                    generated.justification ||
+                    "Requires administrative or dangerous command execution",
+                },
+              );
 
               // Poll for human decision in the background
               let decisionMade = false;
               let decisionType: string = "timeout";
               const timeoutAt = Date.now() + 300000; // 5-minute timeout
 
-              console.log(`[Coordinator] Registered HITL request ${approvalId}. Waiting...`);
+              console.log(
+                `[Coordinator] Registered HITL request ${approvalId}. Waiting...`,
+              );
 
               while (Date.now() < timeoutAt && !decisionMade) {
                 await new Promise((resolve) => setTimeout(resolve, 5000));
-                
-                const approval = await convexClient.query(api.hitl.getApproval, {
-                  id: approvalId,
-                });
+
+                const approval = await convexClient.query(
+                  api.hitl.getApproval,
+                  {
+                    id: approvalId,
+                  },
+                );
 
                 if (approval && approval.decision !== "pending") {
                   decisionMade = true;
@@ -193,32 +247,54 @@ export class PentestCoordinator {
               }
 
               if (decisionType === "denied" || decisionType === "timeout") {
-                this.emit("task_fail", `HITL request ${decisionType} for: "${task.title}"`, task.task_id, task.title);
+                this.emit(
+                  "task_fail",
+                  `HITL request ${decisionType} for: "${task.title}"`,
+                  task.task_id,
+                  task.title,
+                );
                 this.ptg.skipTask(task.task_id);
                 await this.syncState("active");
                 continue;
               }
-              
-              this.emit("hitl_resume", "Human approved task execution. Resuming...", task.task_id, task.title);
+
+              this.emit(
+                "hitl_resume",
+                "Human approved task execution. Resuming...",
+                task.task_id,
+                task.title,
+              );
             } catch (err: any) {
               console.error("[Coordinator] HITL processing failed:", err);
             }
           } else {
-            console.log(`[Coordinator] Running locally without Convex. Auto-approving red task: ${task.title}`);
+            console.log(
+              `[Coordinator] Running locally without Convex. Auto-approving red task: ${task.title}`,
+            );
           }
         }
 
         // G. Execute command in persistent sandbox VM
         this.emit("status", `Executing command in sandbox: ${finalCommand}`);
-        await this.logAudit("sandbox_command", { taskId: task.task_id, command: finalCommand });
-        addWorklogEntry(this.sessionId, "command", `Executing: ${finalCommand.slice(0, 60)}...`, "running");
+        await this.logAudit("sandbox_command", {
+          taskId: task.task_id,
+          command: finalCommand,
+        });
+        addWorklogEntry(
+          this.sessionId,
+          "command",
+          `Executing: ${finalCommand.slice(0, 60)}...`,
+          "running",
+        );
 
         const startShellTime = Date.now();
         const sandbox = await getOrCreateSandbox(this.sessionId);
         let execResult;
 
         try {
-          execResult = await sandbox.commands.run(finalCommand, { timeoutMs: 60000 });
+          execResult = await sandbox.commands.run(finalCommand, {
+            timeoutMs: 60000,
+          });
         } catch (err: any) {
           execResult = {
             exitCode: -1,
@@ -231,48 +307,105 @@ export class PentestCoordinator {
 
         // H. Process execution output
         if (execResult.exitCode !== 0) {
-          const errorMsg = execResult.stderr || "Command exited with non-zero status";
-          const failedAttempt = analyzeFailure(task, errorMsg, execResult.stdout, execResult.stderr, execResult.exitCode);
+          const errorMsg =
+            execResult.stderr || "Command exited with non-zero status";
+          const failedAttempt = analyzeFailure(
+            task,
+            errorMsg,
+            execResult.stdout,
+            execResult.stderr,
+            execResult.exitCode,
+          );
           this.failedAttemptsHistory.push(failedAttempt);
-          
+
           this.ptg.failTask(task.task_id, errorMsg);
           await storeMemory(this.sessionId, task, [], this.ptg);
-          
-          addShellEntry(this.sessionId, finalCommand, execResult.stdout || "", execResult.stderr || errorMsg, execResult.exitCode, durationMs);
-          addWorklogEntry(this.sessionId, "command", `Failed command: ${finalCommand.slice(0, 60)}...`, "error", errorMsg);
-          
-          this.emit("task_fail", `Task failed: "${task.title}" (Error: ${errorMsg})`, task.task_id, task.title);
+
+          addShellEntry(
+            this.sessionId,
+            finalCommand,
+            execResult.stdout || "",
+            execResult.stderr || errorMsg,
+            execResult.exitCode,
+            durationMs,
+          );
+          addWorklogEntry(
+            this.sessionId,
+            "command",
+            `Failed command: ${finalCommand.slice(0, 60)}...`,
+            "error",
+            errorMsg,
+          );
+
+          this.emit(
+            "task_fail",
+            `Task failed: "${task.title}" (Error: ${errorMsg})`,
+            task.task_id,
+            task.title,
+          );
         } else {
           // Track shell history
-          addShellEntry(this.sessionId, finalCommand, execResult.stdout || "", execResult.stderr || "", execResult.exitCode, durationMs);
-          addWorklogEntry(this.sessionId, "command", `Completed: ${task.title}`, "success");
+          addShellEntry(
+            this.sessionId,
+            finalCommand,
+            execResult.stdout || "",
+            execResult.stderr || "",
+            execResult.exitCode,
+            durationMs,
+          );
+          addWorklogEntry(
+            this.sessionId,
+            "command",
+            `Completed: ${task.title}`,
+            "success",
+          );
 
           // Sync files inside E2B sandbox to local IDE visualizer panel
           try {
-            const filesList = await sandbox.commands.run("find /home/user/pentest -type f -maxdepth 3 2>/dev/null");
+            const filesList = await sandbox.commands.run(
+              "find /home/user/pentest -type f -maxdepth 3 2>/dev/null",
+            );
             if (filesList.stdout) {
               const filePaths = filesList.stdout.split("\n").filter(Boolean);
               for (const filePath of filePaths.slice(0, 5)) {
-                const contentRes = await sandbox.commands.run(`cat "${filePath}" 2>/dev/null`);
+                const contentRes = await sandbox.commands.run(
+                  `cat "${filePath}" 2>/dev/null`,
+                );
                 if (contentRes.stdout) {
                   trackIDEFile(this.sessionId, filePath, contentRes.stdout);
-                  trackFileChange(this.sessionId, filePath, "write", contentRes.stdout, contentRes.stdout.length);
+                  trackFileChange(
+                    this.sessionId,
+                    filePath,
+                    "write",
+                    contentRes.stdout,
+                    contentRes.stdout.length,
+                  );
                 }
               }
             }
           } catch {}
 
           // I. Parsing structured findings
-          const parseResult = await parseOutput(finalCommand, execResult.stdout, execResult.stderr);
-          
+          const parseResult = await parseOutput(
+            finalCommand,
+            execResult.stdout,
+            execResult.stderr,
+          );
+
           // J. Deterministic Validation
-          const validation = await validateFindings(sandbox, parseResult.findings);
+          const validation = await validateFindings(
+            sandbox,
+            parseResult.findings,
+          );
           const validatedFindings = validation.validated.map((v) => v.finding);
 
           // K. Vulnerability Chaining
           const chains = detectChains(validatedFindings);
           if (chains.length > 0) {
-            this.emit("chain_detected", `🔗 Chained ${chains.length} findings into highly critical attack paths!`);
+            this.emit(
+              "chain_detected",
+              `🔗 Chained ${chains.length} findings into highly critical attack paths!`,
+            );
             for (const chain of chains) {
               await this.logAudit("llm_call", {
                 type: "chain_detection",
@@ -286,19 +419,35 @@ export class PentestCoordinator {
           // L. Complete task and spawn child tasks
           this.ptg.completeTask(task.task_id, validatedFindings);
 
-          const agentId = spawnAgentSession(this.sessionId, task.phase, `Spawning tasks from ${task.title}`);
+          const agentId = spawnAgentSession(
+            this.sessionId,
+            task.phase,
+            `Spawning tasks from ${task.title}`,
+          );
           let spawnedCount = 0;
 
           for (const finding of validatedFindings) {
-            const children = spawnTasksFromFinding(finding, task.task_id, this.targetScope[0]);
+            const children = spawnTasksFromFinding(
+              finding,
+              task.task_id,
+              this.targetScope[0],
+            );
             if (children.length > 0) {
               this.ptg.spawnChildTasks(task.task_id, children);
               spawnedCount += children.length;
-              addWorklogEntry(this.sessionId, "agent_spawn", `Spawned ${children.length} downstream tasks for: ${finding.description}`, "success");
+              addWorklogEntry(
+                this.sessionId,
+                "agent_spawn",
+                `Spawned ${children.length} downstream tasks for: ${finding.description}`,
+                "success",
+              );
             }
           }
 
-          updateAgentSession(this.sessionId, agentId, { status: "completed", commandCount: spawnedCount });
+          updateAgentSession(this.sessionId, agentId, {
+            status: "completed",
+            commandCount: spawnedCount,
+          });
 
           // M. Commit to 4-tier memory
           await storeMemory(this.sessionId, task, validatedFindings, this.ptg);
@@ -308,12 +457,12 @@ export class PentestCoordinator {
             `Successfully completed task with ${validatedFindings.length} verified findings.`,
             task.task_id,
             task.title,
-            validatedFindings.length
+            validatedFindings.length,
           );
         }
 
         await this.syncState("active");
-        
+
         // Brief delay between tasks for stability
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
@@ -345,7 +494,10 @@ export class PentestCoordinator {
           status,
         });
       } catch (err: any) {
-        console.error("[Coordinator] Failed to sync PTG state to Convex:", err.message);
+        console.error(
+          "[Coordinator] Failed to sync PTG state to Convex:",
+          err.message,
+        );
       }
     }
   }
@@ -375,10 +527,10 @@ export class PentestCoordinator {
     message: string,
     taskId?: string,
     taskTitle?: string,
-    findingsCount?: number
+    findingsCount?: number,
   ) {
     const stats = this.ptg.getStats();
-    
+
     console.log(`[Coordinator: ${type.toUpperCase()}] ${message}`);
 
     if (this.onProgress) {

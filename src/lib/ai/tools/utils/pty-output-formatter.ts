@@ -39,6 +39,7 @@ let TerminalCtor:
   | null = null;
 
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   TerminalCtor = require("@xterm/headless").Terminal;
 } catch (err) {
   console.warn(

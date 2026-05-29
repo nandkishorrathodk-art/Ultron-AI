@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 import { useStickToBottom } from "use-stick-to-bottom";
 import { useCallback, useEffect } from "react";
 import { STICKY_BOTTOM_ESCAPE_EVENT } from "@/lib/utils/scroll-events";
@@ -16,16 +17,27 @@ export const useMessageScroll = () => {
       if (options?.instant) {
         const scrollContainer = stickToBottom.scrollRef.current;
         if (scrollContainer) {
+           
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
+           
         }
+         
         return true;
+         
       }
+       
 
+       
       return stickToBottom.scrollToBottom({
+         
         animation: "smooth",
+         
         preserveScrollPosition: !options?.force,
+         
       });
+       
     },
+     
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [stickToBottom.scrollToBottom, stickToBottom.scrollRef],
   );

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useChat } from "@ai-sdk/react";
@@ -5,7 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Shield, Send, TerminalSquare, User, Globe, FileText, FileEdit, Package, PanelRightOpen } from "lucide-react";
+import {
+  Shield,
+  Send,
+  TerminalSquare,
+  User,
+  Globe,
+  FileText,
+  FileEdit,
+  Package,
+  PanelRightOpen,
+} from "lucide-react";
 import { MonitorPanel } from "@/components/MonitorPanel";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -19,11 +30,51 @@ let currentSessionId: string | null = null;
 
 // ─── Auto Flow Mode Detection ─────────────────────────────────────────────────
 const FLOW_MODE_PATTERNS: { mode: FlowMode; patterns: RegExp[] }[] = [
-  { mode: "ctf", patterns: [/\bctf\b/i, /\bcapture.the.flag\b/i, /\bchallenge\b/i, /\bflag\b/i] },
-  { mode: "bug_bounty", patterns: [/\bbug.?bounty\b/i, /\bhackerone\b/i, /\bbugcrowd\b/i, /\bbounty\b/i] },
-  { mode: "ai_redteam", patterns: [/\bai.?red.?team/i, /\bllm.?(attack|inject|jailbreak)/i, /\bprompt.?inject/i] },
-  { mode: "cicd", patterns: [/\bci\/?cd\b/i, /\bpipeline\b/i, /\bgithub.?action/i, /\bjenkins\b/i, /\bdevops\b/i] },
-  { mode: "continuous", patterns: [/\bcontinuous\b/i, /\bmonitor/i, /\b24\/7\b/i, /\bscheduled?\b/i] },
+  {
+    mode: "ctf",
+    patterns: [
+      /\bctf\b/i,
+      /\bcapture.the.flag\b/i,
+      /\bchallenge\b/i,
+      /\bflag\b/i,
+    ],
+  },
+  {
+    mode: "bug_bounty",
+    patterns: [
+      /\bbug.?bounty\b/i,
+      /\bhackerone\b/i,
+      /\bbugcrowd\b/i,
+      /\bbounty\b/i,
+    ],
+  },
+  {
+    mode: "ai_redteam",
+    patterns: [
+      /\bai.?red.?team/i,
+      /\bllm.?(attack|inject|jailbreak)/i,
+      /\bprompt.?inject/i,
+    ],
+  },
+  {
+    mode: "cicd",
+    patterns: [
+      /\bci\/?cd\b/i,
+      /\bpipeline\b/i,
+      /\bgithub.?action/i,
+      /\bjenkins\b/i,
+      /\bdevops\b/i,
+    ],
+  },
+  {
+    mode: "continuous",
+    patterns: [
+      /\bcontinuous\b/i,
+      /\bmonitor/i,
+      /\b24\/7\b/i,
+      /\bscheduled?\b/i,
+    ],
+  },
 ];
 
 function detectFlowMode(message: string): FlowMode {
@@ -80,7 +131,11 @@ interface ChatMessage {
 }
 
 // ─── Tool Result Renderer ─────────────────────────────────────────────────────
-function ToolResultDisplay({ toolInvocation }: { toolInvocation: ToolInvocationData }) {
+function ToolResultDisplay({
+  toolInvocation,
+}: {
+  toolInvocation: ToolInvocationData;
+}) {
   const toolName = toolInvocation.toolName;
   const args = toolInvocation.args ?? {};
   const result = toolInvocation.result ?? {};
@@ -133,9 +188,7 @@ function ToolResultDisplay({ toolInvocation }: { toolInvocation: ToolInvocationD
       </div>
       <div className="mt-2 text-muted-foreground whitespace-pre-wrap break-all">
         {content}
-        {errorContent && (
-          <span className="text-red-400">{errorContent}</span>
-        )}
+        {errorContent && <span className="text-red-400">{errorContent}</span>}
       </div>
     </div>
   );
@@ -160,7 +213,8 @@ function ToolInvocationDisplay({
         <AgentApprovalGate
           action={{
             taskId: toolInvocation.toolCallId,
-            riskLevel: (toolInvocation.result.risk_level as "yellow" | "red") ?? "red",
+            riskLevel:
+              (toolInvocation.result.risk_level as "yellow" | "red") ?? "red",
             command: toolInvocation.result.command ?? "",
             justification: toolInvocation.result.justification ?? "",
           }}
@@ -173,17 +227,18 @@ function ToolInvocationDisplay({
     return <ToolResultDisplay toolInvocation={toolInvocation} />;
   }
 
-  const runningLabel = toolName === "execute_bash"
-    ? args.command
-    : toolName === "web_search"
-      ? `Searching: ${args.query}`
-      : toolName === "read_file"
-        ? `Reading: ${args.path}`
-        : toolName === "write_file"
-          ? `Writing: ${args.path}`
-          : toolName === "install_tool"
-            ? `Installing: ${args.tool_name}`
-            : toolName;
+  const runningLabel =
+    toolName === "execute_bash"
+      ? args.command
+      : toolName === "web_search"
+        ? `Searching: ${args.query}`
+        : toolName === "read_file"
+          ? `Reading: ${args.path}`
+          : toolName === "write_file"
+            ? `Writing: ${args.path}`
+            : toolName === "install_tool"
+              ? `Installing: ${args.tool_name}`
+              : toolName;
 
   return (
     <div className="p-3 bg-black/50 rounded border border-primary/30 font-mono text-xs text-green-400">
@@ -191,7 +246,9 @@ function ToolInvocationDisplay({
         <TerminalSquare className="w-4 h-4" />
         <span>Executing: {runningLabel}</span>
       </div>
-      <div className="mt-2 text-muted-foreground animate-pulse">Running in sandbox...</div>
+      <div className="mt-2 text-muted-foreground animate-pulse">
+        Running in sandbox...
+      </div>
     </div>
   );
 }
@@ -238,7 +295,8 @@ export default function Home() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setInput(e.target.value);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -262,7 +320,8 @@ export default function Home() {
         .flatMap((m) => m.parts ?? [])
         .find(
           (p) =>
-            p.type === "tool-invocation" && p.toolInvocation?.toolCallId === taskId,
+            p.type === "tool-invocation" &&
+            p.toolInvocation?.toolCallId === taskId,
         );
       const command = matchedPart?.toolInvocation?.result?.command ?? "";
 
@@ -309,7 +368,9 @@ export default function Home() {
           sessionId: currentSessionId ?? "",
           denied: true,
         }),
-      }).catch((err) => console.error("[Ultron UI] Failed to deny task in Convex:", err));
+      }).catch((err) =>
+        console.error("[Ultron UI] Failed to deny task in Convex:", err),
+      );
 
       addToolOutput({
         tool: "execute_bash",
@@ -331,9 +392,12 @@ export default function Home() {
             Ultron v2.0 — ULTRON-X
           </h1>
           <p className="text-sm text-muted-foreground">
-            AI-powered autonomous penetration testing with Flow Engine + 13 specialist agents.
+            AI-powered autonomous penetration testing with Flow Engine + 13
+            specialist agents.
             {detectedMode !== "standard" && (
-              <span className="ml-2 text-primary font-medium">[{detectedMode.toUpperCase()} MODE]</span>
+              <span className="ml-2 text-primary font-medium">
+                [{detectedMode.toUpperCase()} MODE]
+              </span>
             )}
           </p>
         </div>
@@ -356,14 +420,19 @@ export default function Home() {
                         Welcome to Ultron v2.0 — ULTRON-X
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Just describe what you want to do — Ultron will automatically detect the
-                        attack mode and target from your message.
+                        Just describe what you want to do — Ultron will
+                        automatically detect the attack mode and target from
+                        your message.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => { setInput("Run an nmap scan on scanme.nmap.org"); }}>
+                      <Card
+                        className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => {
+                          setInput("Run an nmap scan on scanme.nmap.org");
+                        }}
+                      >
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
                             <TerminalSquare className="w-4 h-4" />
@@ -374,8 +443,14 @@ export default function Home() {
                           &quot;Run an nmap scan on scanme.nmap.org&quot;
                         </CardContent>
                       </Card>
-                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => { setInput("Find hidden directories on example.com using gobuster"); }}>
+                      <Card
+                        className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => {
+                          setInput(
+                            "Find hidden directories on example.com using gobuster",
+                          );
+                        }}
+                      >
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
                             <Globe className="w-4 h-4" />
@@ -383,11 +458,18 @@ export default function Home() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
-                          &quot;Find hidden directories on example.com using gobuster&quot;
+                          &quot;Find hidden directories on example.com using
+                          gobuster&quot;
                         </CardContent>
                       </Card>
-                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => { setInput("Solve this CTF challenge: find the hidden flag"); }}>
+                      <Card
+                        className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => {
+                          setInput(
+                            "Solve this CTF challenge: find the hidden flag",
+                          );
+                        }}
+                      >
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
                             <Shield className="w-4 h-4" />
@@ -395,11 +477,16 @@ export default function Home() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
-                          &quot;Solve this CTF challenge: find the hidden flag&quot;
+                          &quot;Solve this CTF challenge: find the hidden
+                          flag&quot;
                         </CardContent>
                       </Card>
-                      <Card className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
-                        onClick={() => { setInput("Run a bug bounty recon on example.com"); }}>
+                      <Card
+                        className="bg-background/50 border-primary/20 cursor-pointer hover:border-primary/50 transition-colors"
+                        onClick={() => {
+                          setInput("Run a bug bounty recon on example.com");
+                        }}
+                      >
                         <CardHeader className="p-3 pb-1">
                           <CardTitle className="text-sm flex items-center gap-2">
                             <FileText className="w-4 h-4" />
@@ -440,16 +527,28 @@ export default function Home() {
                       m.parts.map((part, index) => {
                         if (part.type === "text" && part.text) {
                           return (
-                            <div key={`text-${index}`} className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                            <div
+                              key={`text-${index}`}
+                              className="text-sm prose prose-sm dark:prose-invert max-w-none"
+                            >
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {part.text}
                               </ReactMarkdown>
                             </div>
                           );
                         }
-                        if (part.type === "tool-invocation" && part.toolInvocation) {
+                        if (
+                          part.type === "tool-invocation" &&
+                          part.toolInvocation
+                        ) {
                           return (
-                            <div key={part.toolInvocation.toolCallId ?? `tool-${index}`} className="mt-4">
+                            <div
+                              key={
+                                part.toolInvocation.toolCallId ??
+                                `tool-${index}`
+                              }
+                              className="mt-4"
+                            >
                               <ToolInvocationDisplay
                                 toolInvocation={part.toolInvocation}
                                 onApprove={handleApprove}
@@ -469,15 +568,16 @@ export default function Home() {
                     ) : null}
 
                     {/* Fallback for old toolInvocations array */}
-                    {!m.parts && m.toolInvocations?.map((toolInvocation) => (
-                      <div key={toolInvocation.toolCallId} className="mt-4">
-                        <ToolInvocationDisplay
-                          toolInvocation={toolInvocation}
-                          onApprove={handleApprove}
-                          onDeny={handleDeny}
-                        />
-                      </div>
-                    ))}
+                    {!m.parts &&
+                      m.toolInvocations?.map((toolInvocation) => (
+                        <div key={toolInvocation.toolCallId} className="mt-4">
+                          <ToolInvocationDisplay
+                            toolInvocation={toolInvocation}
+                            onApprove={handleApprove}
+                            onDeny={handleDeny}
+                          />
+                        </div>
+                      ))}
                   </div>
                 </div>
               ))}
@@ -490,8 +590,14 @@ export default function Home() {
                   <div className="bg-muted/50 border p-4 rounded-lg rounded-tl-none flex-1">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"></div>
-                      <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                      <div className="w-2 h-2 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                      <div
+                        className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      ></div>
+                      <div
+                        className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -506,7 +612,10 @@ export default function Home() {
 
           {/* Input Area */}
           <div className="p-4 bg-background border-t shrink-0">
-            <form onSubmit={onSubmit} className="max-w-4xl mx-auto relative flex items-center">
+            <form
+              onSubmit={onSubmit}
+              className="max-w-4xl mx-auto relative flex items-center"
+            >
               <Input
                 value={input}
                 onChange={handleInputChange}
@@ -524,7 +633,8 @@ export default function Home() {
               </Button>
             </form>
             <div className="text-center mt-2 text-xs text-muted-foreground">
-              Ultron v2.0 can make mistakes. Always verify findings before reporting.
+              Ultron v2.0 can make mistakes. Always verify findings before
+              reporting.
             </div>
           </div>
         </div>
@@ -541,9 +651,7 @@ export default function Home() {
         )}
 
         {/* Monitor Side Panel */}
-        {showMonitor && (
-          <MonitorPanel onClose={() => setShowMonitor(false)} />
-        )}
+        {showMonitor && <MonitorPanel onClose={() => setShowMonitor(false)} />}
       </div>
     </div>
   );

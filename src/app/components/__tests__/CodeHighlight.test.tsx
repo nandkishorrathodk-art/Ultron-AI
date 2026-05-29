@@ -5,6 +5,7 @@ import { CodeHighlight } from "../CodeHighlight";
 jest.mock("react-shiki", () => ({
   __esModule: true,
   default: ({ children }: { children?: React.ReactNode }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require("react");
     return React.createElement("div", null, children);
   },
@@ -14,6 +15,7 @@ jest.mock("react-shiki", () => ({
 describe("CodeHighlight", () => {
   it("wraps long inline code tokens instead of forcing horizontal scrolling", () => {
     render(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       <CodeHighlight node={{ type: "element", tagName: "code" } as any}>
         53‡‡†305))6*;4826)4‡.)4‡);806*;48†8¶60))85
       </CodeHighlight>,

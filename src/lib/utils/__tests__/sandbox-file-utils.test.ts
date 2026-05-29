@@ -30,6 +30,7 @@ describe("desktop-local sandbox file helpers", () => {
   it("removes source paths before persistence", () => {
     const [message] = stripLocalDesktopSourcePaths([makeLocalMessage()]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filePart = message.parts?.find((part: any) => part.type === "file");
     expect(filePart).toMatchObject({
       type: "file",
@@ -37,6 +38,7 @@ describe("desktop-local sandbox file helpers", () => {
       localAttachmentId: "local-1",
       name: "report.pdf",
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((filePart as any).localPath).toBeUndefined();
   });
 
@@ -58,6 +60,7 @@ describe("desktop-local sandbox file helpers", () => {
     );
     expect(
       messages[0].parts?.some(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part: any) =>
           part.type === "text" &&
           part.text ===
