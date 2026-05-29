@@ -13,7 +13,6 @@ import { jwtVerify } from "jose";
  */
 
 const PUBLIC_PATHS = new Set([
-  "/",
   "/landing",
   "/login",
   "/signup",
@@ -75,7 +74,7 @@ export default async function proxy(request: NextRequest) {
     request.headers.get("authorization")?.replace("Bearer ", "");
 
   if (!token) {
-    // No token — redirect browser requests to login, return 401 for API
+    // No token — redirect browser requests to login or landing
     if (!isBrowserRequest(request)) {
       return NextResponse.json(
         {
@@ -84,6 +83,10 @@ export default async function proxy(request: NextRequest) {
         },
         { status: 401 },
       );
+    }
+    // Unauthenticated users visiting / see the landing page
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/landing", request.url));
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
