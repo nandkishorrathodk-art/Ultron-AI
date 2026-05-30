@@ -54,6 +54,7 @@ export interface CoordinatorOptions {
   mode: "standard" | "ctf" | "bug_bounty" | "continuous";
   maxIterations?: number;
   onProgress?: (update: CoordinatorProgressUpdate) => void;
+  hitlApprovalTimeoutMs?: number; // NEW: Configurable HITL timeout
 }
 
 export interface CoordinatorProgressUpdate {
@@ -79,6 +80,7 @@ export class PentestCoordinator {
   private mode: "standard" | "ctf" | "bug_bounty" | "continuous";
   private maxIterations: number;
   private onProgress?: (update: CoordinatorProgressUpdate) => void;
+  private hitlApprovalTimeoutMs: number; // NEW: HITL timeout
 
   private ptg: PenetrationTaskGraph;
   private failedAttemptsHistory: FailedAttempt[] = [];
@@ -91,6 +93,7 @@ export class PentestCoordinator {
     this.mode = options.mode;
     this.maxIterations = options.maxIterations || 48; // XBOW-level 48-step chains support
     this.onProgress = options.onProgress;
+    this.hitlApprovalTimeoutMs = options.hitlApprovalTimeoutMs || 1800000; // 30min default
 
     this.ptg = new PenetrationTaskGraph();
   }
@@ -224,10 +227,10 @@ export class PentestCoordinator {
               // Poll for human decision in the background
               let decisionMade = false;
               let decisionType: string = "timeout";
-              const timeoutAt = Date.now() + 300000; // 5-minute timeout
+              const timeoutAt = Date.now() + this.hitlApprovalTimeoutMs; // USE CONFIGURED TIMEOUT
 
               console.log(
-                `[Coordinator] Registered HITL request ${approvalId}. Waiting...`,
+                `[Coordinator] Registered HITL request ${approvalId}. Waiting... (timeout: ${this.hitlApprovalTimeoutMs}ms)`,
               );
 
               while (Date.now() < timeoutAt && !decisionMade) {
@@ -244,6 +247,12 @@ export class PentestCoordinator {
                   decisionMade = true;
                   decisionType = approval.decision;
                 }
+              }
+
+              if (!decisionMade) {
+                console.error(
+                  `[Coordinator] HITL approval timeout after ${this.hitlApprovalTimeoutMs}ms for task: ${task.title}`
+                );
               }
 
               if (decisionType === "denied" || decisionType === "timeout") {
