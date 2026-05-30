@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "Default capabilities for HackerAI Desktop",
+  "description": "Default capabilities for Ultron-AI Desktop",
   "windows": ["main"],
   "remote": {
-    "urls": ["http://localhost:*", "https://hackerai.co/*"]
+    "urls": ["http://localhost:*", "https://ultron-a-i.vercel.app/*"]
   },
   "permissions": [
     "core:default",
@@ -27,8 +27,8 @@
       "allow": [
         { "path": "$HOME/**" },
         { "path": "$DOWNLOAD/**" },
-        { "path": "/tmp/hackerai-upload/**" },
-        { "path": "/tmp/hackerai/**" }
+        { "path": "/tmp/ultron-ai-upload/**" },
+        { "path": "/tmp/ultron-ai/**" }
       ]
     }
   ]

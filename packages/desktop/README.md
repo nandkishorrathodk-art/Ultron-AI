@@ -1,10 +1,10 @@
-# HackerAI Desktop
+# Ultron-AI Desktop
 
-Native desktop application for HackerAI built with [Tauri](https://tauri.app/).
+Native desktop application for Ultron-AI built with [Tauri](https://tauri.app/).
 
 ## Overview
 
-The desktop app wraps the HackerAI web application in a native shell, providing:
+The desktop app wraps the Ultron-AI web application in a native shell, providing:
 
 - **Native window** with system integration
 - **Auto-updates** via Tauri's updater plugin
@@ -52,7 +52,7 @@ pnpm install
 pnpm dev
 ```
 
-This opens the desktop app pointing to `https://hackerai.co`.
+This opens the desktop app pointing to `https://ultron-a-i.vercel.app`.
 
 ### Run with local web server
 
@@ -98,7 +98,7 @@ pnpm build
 │                    Tauri Desktop App                        │
 ├─────────────────────────────────────────────────────────────┤
 │  Rust Backend (src-tauri/)     │  WebView                   │
-│  └─ main.rs/lib.rs             │  └─ Loads hackerai.co      │
+│  └─ main.rs/lib.rs             │  └─ Loads ultron-a-i.vercel.app │
 │     └─ Plugin registration     │     (uses web auth flow)   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -151,7 +151,7 @@ Go to Actions → "Build Desktop App" → Run workflow
 Generate a key pair:
 
 ```bash
-pnpm tauri signer generate -w ~/.tauri/hackerai.key
+pnpm tauri signer generate -w ~/.tauri/ultron-ai.key
 ```
 
 Set in CI:
@@ -187,4 +187,4 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev
 
 ## License
 
-Proprietary - HackerAI
+Proprietary - Ultron-AI

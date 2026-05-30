@@ -291,16 +291,45 @@ export class PentestCoordinator {
         const sandbox = await getOrCreateSandbox(this.sessionId);
         let execResult;
 
-        try {
-          execResult = await sandbox.commands.run(finalCommand, {
-            timeoutMs: 60000,
-          });
-        } catch (err: any) {
-          execResult = {
-            exitCode: -1,
-            stdout: "",
-            stderr: `Execution error: ${err.message}`,
-          };
+        if (finalCommand.startsWith("browser_attack")) {
+          try {
+            const match = finalCommand.match(/^browser_attack\s+--type\s+(\S+)\s+--url\s+(\S+)/);
+            if (match) {
+              const url = match[2];
+              const { BrowserAttackAgent } = await import("./modules/browser-attack");
+              const agent = new BrowserAttackAgent(sandbox);
+              const result = await agent.runScanner({ targetUrl: url });
+              execResult = {
+                exitCode: result.success ? 0 : 1,
+                stdout: JSON.stringify({ success: result.success, findings: result.findings }),
+                stderr: result.error || ""
+              };
+            } else {
+              execResult = {
+                exitCode: 1,
+                stdout: "",
+                stderr: "Invalid browser_attack command format"
+              };
+            }
+          } catch (err: any) {
+            execResult = {
+              exitCode: -1,
+              stdout: "",
+              stderr: `Browser scan execution error: ${err.message}`,
+            };
+          }
+        } else {
+          try {
+            execResult = await sandbox.commands.run(finalCommand, {
+              timeoutMs: 60000,
+            });
+          } catch (err: any) {
+            execResult = {
+              exitCode: -1,
+              stdout: "",
+              stderr: `Execution error: ${err.message}`,
+            };
+          }
         }
 
         const durationMs = Date.now() - startShellTime;

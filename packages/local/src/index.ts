@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * HackerAI Local Sandbox Client
+ * Ultron-AI Local Sandbox Client
  *
- * Connects to HackerAI backend via Convex for connection lifecycle
+ * Connects to Ultron-AI backend via Convex for connection lifecycle
  * and uses Centrifugo for real-time command relay and streaming output.
  *
  * Runs commands directly on the host OS (no Docker isolation).
  *
  * Usage:
- *   npx @hackerai/local --token TOKEN
+ *   npx @ultron-ai/local --token TOKEN
  */
 
 import { ConvexHttpClient } from "convex/browser";

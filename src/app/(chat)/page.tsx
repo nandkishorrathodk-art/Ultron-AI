@@ -9,11 +9,11 @@ import { Chat } from "../components/chat";
 import PricingDialog from "../components/PricingDialog";
 import TeamPricingDialog from "../components/TeamPricingDialog";
 import { TeamWelcomeDialog } from "../components/TeamDialogs";
-import MigratePentestgptDialog from "../components/MigrateDialog";
+
 import { ExtraUsagePurchaseToast } from "../components/extra-usage";
 import { usePricingDialog } from "../hooks/usePricingDialog";
 import { useGlobalState } from "../contexts/GlobalState";
-import { usePentestgptMigration } from "../hooks/usePentestgptMigration";
+
 import { navigateToAuth } from "../hooks/useTauri";
 import { useTypingAnimation } from "../hooks/useTypingAnimation";
 import { upsertDraft } from "@/lib/utils/client-storage";
@@ -123,12 +123,10 @@ export default function Page() {
     setTeamPricingDialogOpen,
     teamWelcomeDialogOpen,
     setTeamWelcomeDialogOpen,
-    migrateFromPentestgptDialogOpen,
-    setMigrateFromPentestgptDialogOpen,
   } = useGlobalState();
   const { showPricing, handleClosePricing } = usePricingDialog(subscription);
 
-  const { isMigrating, migrate } = usePentestgptMigration();
+
   const searchParams =
     typeof window !== "undefined" ? window.location.search : "";
   const { initialSeats, initialPlan } = React.useMemo(() => {
@@ -170,12 +168,7 @@ export default function Page() {
           open={teamWelcomeDialogOpen}
           onOpenChange={setTeamWelcomeDialogOpen}
         />
-        <MigratePentestgptDialog
-          open={migrateFromPentestgptDialogOpen}
-          onOpenChange={setMigrateFromPentestgptDialogOpen}
-          isMigrating={isMigrating}
-          onConfirm={migrate}
-        />
+
       </Authenticated>
       <Unauthenticated>
         <UnauthenticatedContent />

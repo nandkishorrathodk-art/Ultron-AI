@@ -12,15 +12,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type MigratePentestgptDialogProps = {
+type MigrateLegacyDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isMigrating: boolean;
   onConfirm: () => void;
 };
 
-export const MigratePentestgptDialog: React.FC<
-  MigratePentestgptDialogProps
+export const MigrateLegacyDialog: React.FC<
+  MigrateLegacyDialogProps
 > = ({ open, onOpenChange, isMigrating, onConfirm }) => {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -28,8 +28,8 @@ export const MigratePentestgptDialog: React.FC<
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm migration</AlertDialogTitle>
           <AlertDialogDescription>
-            Migrating will transfer your active PentestGPT subscription to
-            Ultron-AI. You will lose access to your plan on PentestGPT. Do you
+            Migrating will transfer your active legacy subscription to
+            Ultron-AI. You will lose access to your previous plan. Do you
             want to continue?
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -44,4 +44,4 @@ export const MigratePentestgptDialog: React.FC<
   );
 };
 
-export default MigratePentestgptDialog;
+export default MigrateLegacyDialog;

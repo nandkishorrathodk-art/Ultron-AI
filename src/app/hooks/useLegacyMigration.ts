@@ -4,13 +4,13 @@ import React from "react";
 import { toast } from "sonner";
 import { useGlobalState } from "@/app/contexts/GlobalState";
 
-type UsePentestgptMigration = {
+type UseLegacyMigration = {
   isMigrating: boolean;
   migrate: () => Promise<void>;
 };
 
-export const usePentestgptMigration = (): UsePentestgptMigration => {
-  const { setMigrateFromPentestgptDialogOpen } = useGlobalState();
+export const useLegacyMigration = (): UseLegacyMigration => {
+  const { setMigrateFromLegacyDialogOpen } = useGlobalState();
   const [isMigrating, setIsMigrating] = React.useState(false);
 
   const migrate = React.useCallback(async () => {
@@ -26,7 +26,7 @@ export const usePentestgptMigration = (): UsePentestgptMigration => {
       if (!response.ok) {
         const errorMessage = data.message || data.error || "Migration failed";
         toast.error(errorMessage);
-        setMigrateFromPentestgptDialogOpen(false);
+        setMigrateFromLegacyDialogOpen(false);
         return;
       }
 
@@ -35,7 +35,7 @@ export const usePentestgptMigration = (): UsePentestgptMigration => {
       try {
         const url = new URL(window.location.href);
         url.searchParams.set("refresh", "entitlements");
-        url.searchParams.delete("confirm-migrate-pentestgpt");
+        url.searchParams.delete("confirm-migrate-legacy");
         if (data?.showTeamWelcome) {
           url.searchParams.set("team-welcome", "true");
         }
@@ -48,13 +48,13 @@ export const usePentestgptMigration = (): UsePentestgptMigration => {
       }
     } catch (error) {
       toast.error("An unexpected error occurred during migration");
-      setMigrateFromPentestgptDialogOpen(false);
+      setMigrateFromLegacyDialogOpen(false);
     } finally {
       setIsMigrating(false);
     }
-  }, [isMigrating, setMigrateFromPentestgptDialogOpen]);
+  }, [isMigrating, setMigrateFromLegacyDialogOpen]);
 
   return { isMigrating, migrate };
 };
 
-export default usePentestgptMigration;
+export default useLegacyMigration;

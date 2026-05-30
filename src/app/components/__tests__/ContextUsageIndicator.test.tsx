@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, it, expect } from "@jest/globals";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ContextUsageIndicator } from "../ContextUsageIndicator";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const originalResizeObserver = global.ResizeObserver;
 
@@ -26,26 +27,42 @@ describe("ContextUsageIndicator", () => {
 
   describe("Circle indicator", () => {
     it("renders an SVG circle element", () => {
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
       const circle = screen.getByTestId("context-usage-circle");
       expect(circle).toBeInTheDocument();
       expect(circle.tagName).toBe("svg");
     });
 
     it("renders without token text", () => {
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
       const indicator = screen.getByTestId("context-usage-indicator");
       expect(indicator.textContent).toBe("");
     });
 
     it("uses a passive hover target by default", () => {
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
       const indicator = screen.getByTestId("context-usage-indicator");
       expect(indicator.tagName).toBe("DIV");
     });
 
     it("keeps the passive desktop target keyboard-focusable", () => {
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
       const indicator = screen.getByTestId("context-usage-indicator");
 
       expect(indicator).toHaveAttribute("tabIndex", "0");
@@ -55,7 +72,9 @@ describe("ContextUsageIndicator", () => {
   describe("Zero tokens state", () => {
     it("renders nothing when all tokens are zero", () => {
       const { container } = render(
-        <ContextUsageIndicator usedTokens={0} maxTokens={0} />,
+        <TooltipProvider>
+          <ContextUsageIndicator usedTokens={0} maxTokens={0} />
+        </TooltipProvider>
       );
       expect(container.innerHTML).toBe("");
     });
@@ -63,7 +82,11 @@ describe("ContextUsageIndicator", () => {
 
   describe("Aria label", () => {
     it("has correct aria-label with formatted token counts", () => {
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
       const indicator = screen.getByTestId("context-usage-indicator");
       expect(indicator).toHaveAttribute(
         "aria-label",
@@ -76,7 +99,11 @@ describe("ContextUsageIndicator", () => {
     it("shows the exact auto-compact threshold on hover", async () => {
       const user = userEvent.setup();
 
-      render(<ContextUsageIndicator {...defaultProps} />);
+      render(
+        <TooltipProvider>
+          <ContextUsageIndicator {...defaultProps} />
+        </TooltipProvider>
+      );
 
       await user.hover(screen.getByTestId("context-usage-indicator"));
 
@@ -96,11 +123,13 @@ describe("ContextUsageIndicator", () => {
       const user = userEvent.setup();
 
       render(
-        <ContextUsageIndicator
-          usedTokens={8500}
-          maxTokens={200000}
-          variant="compact-popover"
-        />,
+        <TooltipProvider>
+          <ContextUsageIndicator
+            usedTokens={8500}
+            maxTokens={200000}
+            variant="compact-popover"
+          />
+        </TooltipProvider>
       );
 
       await user.click(screen.getByTestId("context-usage-indicator"));

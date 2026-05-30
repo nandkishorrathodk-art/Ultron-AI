@@ -152,9 +152,9 @@ interface GlobalStateType {
   teamWelcomeDialogOpen: boolean;
   setTeamWelcomeDialogOpen: (open: boolean) => void;
 
-  // PentestGPT migration confirm dialog state
-  migrateFromPentestgptDialogOpen: boolean;
-  setMigrateFromPentestgptDialogOpen: (open: boolean) => void;
+  // Legacy migration confirm dialog state
+  migrateFromLegacyDialogOpen: boolean;
+  setMigrateFromLegacyDialogOpen: (open: boolean) => void;
 
   // Register a chat reset function that will be invoked on initializeNewChat
   setChatReset: (fn: (() => void) | null) => void;
@@ -304,12 +304,12 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     return urlParams.get("team-welcome") === "true";
   });
 
-  // Initialize PentestGPT migration confirm dialog from URL parameter
-  const [migrateFromPentestgptDialogOpen, setMigrateFromPentestgptDialogOpen] =
+  // Initialize legacy migration confirm dialog from URL parameter
+  const [migrateFromLegacyDialogOpen, setMigrateFromLegacyDialogOpen] =
     useState(() => {
       if (typeof window === "undefined") return false;
       const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get("confirm-migrate-pentestgpt") === "true";
+      return urlParams.get("confirm-migrate-legacy") === "true";
     });
 
   useEffect(() => {
@@ -518,15 +518,15 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     };
   }, [teamWelcomeDialogOpen]);
 
-  // Listen for URL changes to sync PentestGPT migration confirm dialog state
+  // Listen for URL changes to sync legacy migration confirm dialog state
   useEffect(() => {
     const handleUrlChange = () => {
       if (typeof window === "undefined") return;
       const urlParams = new URLSearchParams(window.location.search);
-      const shouldOpen = urlParams.get("confirm-migrate-pentestgpt") === "true";
+      const shouldOpen = urlParams.get("confirm-migrate-legacy") === "true";
 
-      if (migrateFromPentestgptDialogOpen !== shouldOpen) {
-        setMigrateFromPentestgptDialogOpen(shouldOpen);
+      if (migrateFromLegacyDialogOpen !== shouldOpen) {
+        setMigrateFromLegacyDialogOpen(shouldOpen);
       }
     };
 
@@ -535,7 +535,7 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     return () => {
       window.removeEventListener("popstate", handleUrlChange);
     };
-  }, [migrateFromPentestgptDialogOpen]);
+  }, [migrateFromLegacyDialogOpen]);
 
   const clearInput = () => {
     setInput("");
@@ -691,17 +691,17 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     }
   }, []);
 
-  // Custom setter for PentestGPT migration confirm dialog that also updates URL
-  const setMigrateFromPentestgptDialogOpenWithUrl = useCallback(
+  // Custom setter for legacy migration confirm dialog that also updates URL
+  const setMigrateFromLegacyDialogOpenWithUrl = useCallback(
     (open: boolean) => {
-      setMigrateFromPentestgptDialogOpen(open);
+      setMigrateFromLegacyDialogOpen(open);
 
       if (typeof window !== "undefined") {
         const url = new URL(window.location.href);
         if (open) {
-          url.searchParams.set("confirm-migrate-pentestgpt", "true");
+          url.searchParams.set("confirm-migrate-legacy", "true");
         } else {
-          url.searchParams.delete("confirm-migrate-pentestgpt");
+          url.searchParams.delete("confirm-migrate-legacy");
         }
         window.history.replaceState({}, "", url.toString());
       }
@@ -756,9 +756,9 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     teamWelcomeDialogOpen,
     setTeamWelcomeDialogOpen: setTeamWelcomeDialogOpenWithUrl,
 
-    migrateFromPentestgptDialogOpen,
-    setMigrateFromPentestgptDialogOpen:
-      setMigrateFromPentestgptDialogOpenWithUrl,
+    migrateFromLegacyDialogOpen,
+    setMigrateFromLegacyDialogOpen:
+      setMigrateFromLegacyDialogOpenWithUrl,
 
     setChatReset,
 
