@@ -2,19 +2,19 @@ import { NextResponse } from "next/server";
 
 export const AUTH_REDIRECT_INTENTS: Record<string, string> = {
   pricing: "/#pricing",
-  "migrate-pentestgpt": "/?confirm-migrate-pentestgpt=true",
+  "migrate-legacy": "/?confirm-migrate-legacy=true",
 };
 
 export function getAuthRedirectPath(url: URL): string | null {
   const intent = url.searchParams.get("intent");
-  const confirmMigrate = url.searchParams.get("confirm-migrate-pentestgpt");
+  const confirmMigrate = url.searchParams.get("confirm-migrate-legacy");
 
   if (intent && AUTH_REDIRECT_INTENTS[intent]) {
     return AUTH_REDIRECT_INTENTS[intent];
   }
 
   if (confirmMigrate === "true") {
-    return AUTH_REDIRECT_INTENTS["migrate-pentestgpt"];
+    return AUTH_REDIRECT_INTENTS["migrate-legacy"];
   }
 
   return null;

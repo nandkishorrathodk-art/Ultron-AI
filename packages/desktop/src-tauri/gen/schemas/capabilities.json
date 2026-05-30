@@ -1,8 +1,8 @@
 {
   "default": {
     "identifier": "default",
-    "description": "Default capabilities for HackerAI Desktop",
-    "remote": { "urls": ["http://localhost:*", "https://hackerai.co/*"] },
+    "description": "Default capabilities for Ultron-AI Desktop",
+    "remote": { "urls": ["http://localhost:*", "https://ultron-a-i.vercel.app/*"] },
     "local": true,
     "windows": ["main"],
     "permissions": [
@@ -26,8 +26,8 @@
         "allow": [
           { "path": "$HOME/**" },
           { "path": "$DOWNLOAD/**" },
-          { "path": "/tmp/hackerai-upload/**" },
-          { "path": "/tmp/hackerai/**" }
+          { "path": "/tmp/ultron-ai-upload/**" },
+          { "path": "/tmp/ultron-ai/**" }
         ]
       }
     ]

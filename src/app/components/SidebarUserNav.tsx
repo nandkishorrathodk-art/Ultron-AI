@@ -202,7 +202,7 @@ const SidebarUserNav = ({ isCollapsed = false }: { isCollapsed?: boolean }) => {
 
   const handleXCom = () => {
     const newWindow = window.open(
-      "https://x.com/PentestGPT",
+      "https://x.com/UltronAI",
       "_blank",
       "noopener,noreferrer",
     );

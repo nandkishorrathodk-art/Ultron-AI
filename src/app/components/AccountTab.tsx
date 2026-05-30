@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usePentestgptMigration } from "@/app/hooks/usePentestgptMigration";
+
 import { X, ChevronDown, Sparkle } from "lucide-react";
 import {
   proFeatures,
@@ -25,11 +25,11 @@ import CancelSubscriptionDialog from "./CancelSubscriptionDialog";
 import redirectToBillingPortalAction from "@/lib/actions/billing-portal";
 
 const AccountTab = () => {
-  const { subscription, setMigrateFromPentestgptDialogOpen } = useGlobalState();
+  const { subscription } = useGlobalState();
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState<boolean | null>(null);
-  const { isMigrating } = usePentestgptMigration();
+
 
   // Fetch admin status for team subscriptions
   useEffect(() => {
@@ -75,10 +75,7 @@ const AccountTab = () => {
     setShowCancelDialog(true);
   };
 
-  const handleOpenMigrateConfirm = () => {
-    if (isMigrating) return;
-    setMigrateFromPentestgptDialogOpen(true);
-  };
+
 
   return (
     <div className="space-y-6 min-h-0">
@@ -166,27 +163,7 @@ const AccountTab = () => {
         </div>
       </div>
 
-      {subscription === "free" && (
-        <div className="border-b pb-6">
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <div className="font-medium">Migrate from PentestGPT</div>
-              <div className="text-sm text-muted-foreground mt-1">
-                Transfer your active PentestGPT subscription
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleOpenMigrateConfirm}
-              disabled={isMigrating}
-            >
-              {isMigrating ? "Migrating..." : "Migrate"}
-            </Button>
-          </div>
-        </div>
-      )}
+
 
       {subscription !== "free" && canManageBilling && (
         <div>

@@ -2,7 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const APP_URL = process.env.APP_URL || "https://hackerai.co";
+const APP_URL = process.env.APP_URL || "https://ultron-a-i.vercel.app";
 const srcPath = path.join(__dirname, "../src/index.html");
 
 const original = fs.readFileSync(srcPath, "utf-8");
