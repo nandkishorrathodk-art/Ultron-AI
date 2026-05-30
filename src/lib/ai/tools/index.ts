@@ -11,6 +11,8 @@ import { createFile } from "./file";
 import { createWebSearch } from "./web-search";
 import { createOpenUrlTool } from "./open-url";
 import { createTodoWrite } from "./todo-write";
+import { createBrowserTool } from "./browser-tool";
+import { createComputerUseTool } from "./computer-use-tool";
 // Caido proxy temporarily disabled for all users — see lib/api/chat-handler.ts kill switch.
 // import { createProxyTools } from "./proxy-tool";
 import {
@@ -137,6 +139,8 @@ export const createTools = (
     get_terminal_files: createGetTerminalFiles(context),
     file: createFile(context),
     todo_write: createTodoWrite(context),
+    browser_action: createBrowserTool(context),
+    computer_use: createComputerUseTool(context),
     ...(!isTemporary &&
       memoryEnabled && {
         create_note: createCreateNote(context),

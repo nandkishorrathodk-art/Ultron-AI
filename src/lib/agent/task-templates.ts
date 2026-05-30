@@ -316,11 +316,11 @@ export function buildBugBountyTemplate(target: string): PTGNode[] {
 
   // OWASP Top 10 checks (parallel)
   const owasp = [
-    { name: "Injection (SQLi/CMDi)", technique: "T1190", risk: "yellow" as const },
-    { name: "Broken Auth / IDOR", technique: "T1078", risk: "yellow" as const },
-    { name: "XSS (Reflected/Stored/DOM)", technique: "T1059.007", risk: "yellow" as const },
-    { name: "SSRF", technique: "T1090", risk: "yellow" as const },
-    { name: "Security Misconfig", technique: "T1574", risk: "green" as const },
+    { name: "Injection (SQLi/CMDi)", technique: "T1190", risk: "yellow" as const, cmd: `browser_attack --type sqli --url https://${target}` },
+    { name: "Broken Auth / IDOR", technique: "T1078", risk: "yellow" as const, cmd: `browser_attack --type auth --url https://${target}` },
+    { name: "XSS (Reflected/Stored/DOM)", technique: "T1059.007", risk: "yellow" as const, cmd: `browser_attack --type xss --url https://${target}` },
+    { name: "SSRF", technique: "T1090", risk: "yellow" as const, cmd: `browser_attack --type ssrf --url https://${target}` },
+    { name: "Security Misconfig", technique: "T1574", risk: "green" as const, cmd: `browser_attack --type csrf --url https://${target}` },
   ];
 
   const owaspNodes: PTGNode[] = owasp.map((item) => {
@@ -330,7 +330,7 @@ export function buildBugBountyTemplate(target: string): PTGNode[] {
       priority: 2,
       risk_level: item.risk,
       mitre_technique: item.technique,
-      commands: [],
+      commands: [item.cmd],
     });
     link(portScan, node);
     return node;

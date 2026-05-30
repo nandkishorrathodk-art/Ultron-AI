@@ -36,8 +36,17 @@ function patternParse(
   stdout: string,
   stderr: string,
 ): Finding[] {
-  const findings: Finding[] = [];
-  const combined = `${stdout}\n${stderr}`;
+  // ── browser_attack parsing ─────────────────────────────────
+  if (command.includes("browser_attack")) {
+    try {
+      const output = JSON.parse(stdout.trim());
+      if (output && Array.isArray(output.findings)) {
+        return output.findings;
+      }
+    } catch {
+      // Fall through
+    }
+  }
 
   // ── nmap parsing ──────────────────────────────────────────
   if (command.includes("nmap")) {

@@ -9,6 +9,8 @@ import { WebToolHandler } from "./tools/WebToolHandler";
 import { TodoToolHandler } from "./tools/TodoToolHandler";
 import { NotesToolHandler } from "./tools/NotesToolHandler";
 import { ProxyToolHandler } from "./tools/ProxyToolHandler";
+import { BrowserToolHandler } from "./tools/BrowserToolHandler";
+import { ComputerUseToolHandler } from "./tools/ComputerUseToolHandler";
 import { GetTerminalFilesHandler } from "./tools/GetTerminalFilesHandler";
 import { SummarizationHandler } from "./tools/SummarizationHandler";
 import type { ChatStatus } from "@/types";
@@ -184,6 +186,12 @@ export const MessagePartHandler = memo(function MessagePartHandler({
     case "tool-open_url":
     case "tool-web": // Legacy tool
       return <WebToolHandler part={part} status={status} />;
+
+    case "tool-browser_action":
+      return <BrowserToolHandler part={part} status={status} />;
+
+    case "tool-computer_use":
+      return <ComputerUseToolHandler part={part} status={status} />;
 
     case "data-terminal":
     case "tool-shell":

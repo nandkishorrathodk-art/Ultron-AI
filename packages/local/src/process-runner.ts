@@ -1,4 +1,6 @@
 import * as os from "os";
+import { getDefaultShell } from "./utils";
+
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -115,7 +117,10 @@ export class ProcessRunner {
     const cols = opts.cols ?? 120;
     const rows = opts.rows ?? 40;
 
-    const shell = os.platform() === "darwin" ? "/bin/zsh" : "/bin/bash";
+    const shellConfig = getDefaultShell(os.platform());
+    const shell = shellConfig.shell;
+    const isCmd = shell.toLowerCase().endsWith("cmd.exe") || shell.toLowerCase().endsWith("cmd");
+    const args = isCmd ? ["/C", command] : ["-l", "-c", command];
 
     const env: Record<string, string> = {
       ...(process.env as Record<string, string>),
@@ -127,7 +132,7 @@ export class ProcessRunner {
     }
 
     const pty = loadPty();
-    const proc = pty.spawn(shell, ["-l", "-c", command], {
+    const proc = pty.spawn(shell, args, {
       name: "xterm-256color",
       cols,
       rows,

@@ -34,14 +34,26 @@ export async function POST(req: NextRequest) {
 
     const sandboxes = await paginator.nextItems();
 
-    // Kill each sandbox
-    for (const sandbox of sandboxes) {
-      try {
-        await Sandbox.kill(sandbox.sandboxId);
-      } catch (error) {
-        console.error(`Failed to kill sandbox ${sandbox.sandboxId}:`, error);
-        throw error;
-      }
+    // Kill each sandbox in parallel to prevent stalling and handle errors gracefully
+    const results = await Promise.allSettled(
+      sandboxes.map((sandbox) => Sandbox.kill(sandbox.sandboxId))
+    );
+
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      failures.forEach((f, idx) => {
+        console.error(`Failed to kill sandbox:`, (f as PromiseRejectedResult).reason);
+      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `${failures.length} sandboxes failed to delete`,
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     return new Response(JSON.stringify({ success: true }), {

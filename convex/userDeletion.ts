@@ -31,39 +31,60 @@ export const deleteAllUserData = mutation({
 
     try {
       // Fetch all user data in parallel using indexed queries
-      const [chats, files, memories, notes, customization, messagesByUser] =
-        await Promise.all([
-          ctx.db
-            .query("chats")
-            .withIndex("by_user_and_updated", (q) =>
-              q.eq("user_id", user.subject),
-            )
-            .collect(),
-          ctx.db
-            .query("files")
-            .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
-            .collect(),
-          ctx.db
-            .query("memories")
-            .withIndex("by_user_and_update_time", (q) =>
-              q.eq("user_id", user.subject),
-            )
-            .collect(),
-          ctx.db
-            .query("notes")
-            .withIndex("by_user_and_updated", (q) =>
-              q.eq("user_id", user.subject),
-            )
-            .collect(),
-          ctx.db
-            .query("user_customization")
-            .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
-            .first(),
-          ctx.db
-            .query("messages")
-            .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
-            .collect(),
-        ]);
+      const [
+        chats,
+        files,
+        memories,
+        notes,
+        customization,
+        messagesByUser,
+        extraUsageRecords,
+        sandboxTokens,
+        sandboxConnections,
+      ] = await Promise.all([
+        ctx.db
+          .query("chats")
+          .withIndex("by_user_and_updated", (q) =>
+            q.eq("user_id", user.subject),
+          )
+          .collect(),
+        ctx.db
+          .query("files")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .collect(),
+        ctx.db
+          .query("memories")
+          .withIndex("by_user_and_update_time", (q) =>
+            q.eq("user_id", user.subject),
+          )
+          .collect(),
+        ctx.db
+          .query("notes")
+          .withIndex("by_user_and_updated", (q) =>
+            q.eq("user_id", user.subject),
+          )
+          .collect(),
+        ctx.db
+          .query("user_customization")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .first(),
+        ctx.db
+          .query("messages")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .collect(),
+        ctx.db
+          .query("extra_usage")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .collect(),
+        ctx.db
+          .query("local_sandbox_tokens")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .collect(),
+        ctx.db
+          .query("local_sandbox_connections")
+          .withIndex("by_user_id", (q) => q.eq("user_id", user.subject))
+          .collect(),
+      ]);
 
       // All user-owned messages (assistant/system messages also have user_id in this app)
       const allMessages = messagesByUser;
@@ -191,6 +212,31 @@ export const deleteAllUserData = mutation({
           );
         }
       }
+
+      // Step 8: Delete extra usage and sandbox records (independent of other data)
+      await Promise.all([
+        ...extraUsageRecords.map(async (rec) => {
+          try {
+            await ctx.db.delete(rec._id);
+          } catch (error) {
+            console.error(`Failed to delete extra usage record ${rec._id}:`, error);
+          }
+        }),
+        ...sandboxTokens.map(async (tok) => {
+          try {
+            await ctx.db.delete(tok._id);
+          } catch (error) {
+            console.error(`Failed to delete sandbox token ${tok._id}:`, error);
+          }
+        }),
+        ...sandboxConnections.map(async (conn) => {
+          try {
+            await ctx.db.delete(conn._id);
+          } catch (error) {
+            console.error(`Failed to delete sandbox connection ${conn._id}:`, error);
+          }
+        }),
+      ]);
 
       return null;
     } catch (error) {
