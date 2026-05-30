@@ -340,6 +340,7 @@ export interface PreviewMessage {
   id: string;
   role: "user" | "assistant" | "system";
   content?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: any[];
   fileDetails?: FileDetails[];
 }

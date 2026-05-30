@@ -17,6 +17,7 @@ import { ReasoningHandler } from "./ReasoningHandler";
 
 interface MessagePartHandlerProps {
   message: UIMessage;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   partIndex: number;
   status: ChatStatus;
@@ -34,6 +35,7 @@ const UserTextPart = memo(function UserTextPart({ text }: { text: string }) {
 
 // Deep equality check for tool inputs — avoids JSON.stringify overhead while
 // correctly handling nested objects/arrays (e.g. tool-file edits, todo_write todos).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function deepEqual(a: any, b: any): boolean {
   if (a === b) return true;
   if (!a || !b || typeof a !== typeof b) return false;
@@ -186,8 +188,11 @@ export const MessagePartHandler = memo(function MessagePartHandler({
     case "data-terminal":
     case "tool-shell":
     case "tool-run_terminal_cmd":
-    case "tool-interact_terminal_session": {
+    case "tool-interact_terminal_session":
+    case "tool-execute_bash":
+    case "tool-install_tool": {
       const effectiveToolCallId =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part as any).data?.toolCallId ?? part.toolCallId;
       const precomputedStreamingOutput = effectiveToolCallId
         ? terminalOutputByToolCallId?.get(effectiveToolCallId)

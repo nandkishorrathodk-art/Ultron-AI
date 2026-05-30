@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 
 import { api } from "@/convex/_generated/api";
@@ -334,6 +335,7 @@ export async function saveMessage({
   message: {
     id: string;
     role: "user" | "assistant" | "system";
+     
     parts: UIMessagePart<any, any>[];
   };
   extraFileIds?: Array<Id<"files">>;
@@ -369,6 +371,7 @@ export async function saveMessage({
             },
           })
         : message.parts;
+     
     const convexSafeParts = sanitizeForConvexValue(fixedParts) as UIMessagePart<
       any,
       any
@@ -390,6 +393,7 @@ export async function saveMessage({
       });
     }
 
+     
     partsForSave = sanitizeForConvexValue(storageSafeParts) as UIMessagePart<
       any,
       any
@@ -430,6 +434,7 @@ export async function saveMessage({
       userId,
       role: message.role,
       parts: partsForSave,
+       
       fileIds: mergedFileIds.length > 0 ? (mergedFileIds as any) : undefined,
       model,
       mode,
@@ -470,8 +475,10 @@ export async function handleInitialChatAndUserMessage({
 }: {
   chatId: string;
   userId: string;
+   
   messages: { id: string; parts: UIMessagePart<any, any>[] }[];
   regenerate?: boolean;
+   
   chat: any; // Chat data from getMessagesByChatId
   isHidden?: boolean;
 }) {
@@ -626,7 +633,7 @@ export async function getMessagesByChatId({
         let pagesFetched = 0;
         let fetchedDesc: UIMessage[] = [];
         let truncatedFromLoop: UIMessage[] | null = null;
-        let fileTokensFromLoop: Record<Id<"files">, number> = {};
+        const fileTokensFromLoop: Record<Id<"files">, number> = {};
         const skipFileTokens = mode === "agent";
 
         while (pagesFetched < MAX_PAGES) {
@@ -842,6 +849,7 @@ export async function getMessagesByChatId({
     let emptyPromptMetadata: Record<string, unknown> | undefined;
     try {
       const fileIds = extractAllFileIdsFromMessages(allMessages);
+       
       const fileTokens = await getFileTokensByIds(fileIds as any, userId);
       const maxTokens = getMaxTokensForSubscription(subscription, {
         mode,

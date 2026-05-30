@@ -13,6 +13,7 @@ export function tokenExhaustedAfterSummarization(state: {
   getLastStepInputTokens: () => number;
   getHasSummarized: () => boolean;
   onFired: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): StopCondition<any> {
   return () => {
     const lastStepInput = state.getLastStepInputTokens();
@@ -32,6 +33,7 @@ export function elapsedTimeExceeds(state: {
   maxDurationMs: number;
   getStartTime: () => number;
   onFired: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): StopCondition<any> {
   return () => {
     const elapsed = Date.now() - state.getStartTime();
@@ -45,6 +47,7 @@ export const DOOM_LOOP_FINISH_REASON = "doom-loop";
 
 export function doomLoopDetected(state: {
   onFired: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }): StopCondition<any> {
   return ({ steps }) => {
     const result = detectDoomLoop(steps as unknown as MinimalStep[]);

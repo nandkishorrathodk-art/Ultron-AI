@@ -117,6 +117,7 @@ describe("token-bucket", () => {
     });
 
     it("should return 0 for unknown subscription tier", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const limits = getBudgetLimits("nonexistent" as any);
       expect(limits.monthly).toBe(0);
     });
@@ -138,6 +139,7 @@ describe("token-bucket", () => {
     });
 
     it("should return 0 for unknown tier", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(getSubscriptionPrice("nonexistent" as any)).toBe(0);
     });
 

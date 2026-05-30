@@ -14,6 +14,7 @@ function makeAssistantMessage(
   parts: Array<Record<string, unknown>>,
   id = "msg-1",
 ): UIMessage {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { id, role: "assistant", parts: parts as any };
 }
 
@@ -120,6 +121,7 @@ describe("pruneToolOutputs", () => {
 
     // The old message's tool output should be replaced with a placeholder
     const oldMsg = result.messages[1];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oldPart = oldMsg.parts[0] as any;
     expect(oldPart.output).toMatch(
       /^\[Terminal: ran 'old-command', exit code 0\]$/,
@@ -127,6 +129,7 @@ describe("pruneToolOutputs", () => {
 
     // The new message's tool output should be intact
     const newMsg = result.messages[2];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const newPart = newMsg.parts[0] as any;
     expect(newPart.output).toEqual({ stdout: smallOutput, exitCode: 0 });
   });
@@ -198,6 +201,7 @@ describe("pruneToolOutputs", () => {
     const result = pruneToolOutputs(messages, 5, NO_MIN);
 
     // File part should be pruned with placeholder
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filePart = result.messages[0].parts[0] as any;
     expect(filePart.output).toMatch(
       /\[File: read \/src\/index\.ts \(100 lines\)\]/,
@@ -226,6 +230,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filePart = result.messages[0].parts[0] as any;
     expect(filePart.output).toBe("[File: edit /src/app.ts]");
   });
@@ -254,6 +259,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const matchPart = result.messages[0].parts[0] as any;
     expect(matchPart.output).toMatch(/\[Match: 50 results in/);
   });
@@ -286,6 +292,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const searchPart = result.messages[0].parts[0] as any;
     expect(searchPart.output).toBe("[Search: 'how to fix bug']");
   });
@@ -308,6 +315,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const part = result.messages[0].parts[0] as any;
     expect(part.output).toBe("[Tool: some_custom_tool completed]");
   });
@@ -334,6 +342,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prunedPart = result.messages[0].parts[0] as any;
     expect(prunedPart.input).toEqual({ command: "nmap -sV target" });
   });
@@ -359,6 +368,7 @@ describe("pruneToolOutputs", () => {
     pruneToolOutputs(messages, 5, NO_MIN);
 
     // Original should be unchanged
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const origPart = messages[0].parts[0] as any;
     expect(origPart.output).toBe(originalOutput);
   });
@@ -392,6 +402,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prunedPart = result.messages[0].parts[0] as any;
     expect(prunedPart.output).toContain("...");
     expect(prunedPart.output.length).toBeLessThan(120);
@@ -433,12 +444,15 @@ describe("pruneToolOutputs", () => {
     expect(result.prunedCount).toBe(2);
 
     // Text part should be untouched
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const textPart = result.messages[0].parts[0] as any;
     expect(textPart.type).toBe("text");
     expect(textPart.text).toBe("Running two commands");
 
     // Both tool parts in the old message should be pruned
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const firstPart = result.messages[0].parts[1] as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const secondPart = result.messages[0].parts[2] as any;
     expect(firstPart.output).toMatch(/\[Terminal:/);
     expect(secondPart.output).toMatch(/\[Terminal:/);
@@ -470,6 +484,7 @@ describe("pruneToolOutputs", () => {
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
     expect(result.prunedCount).toBe(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const part = result.messages[0].parts[0] as any;
     expect(part.output).toMatch(/\[Terminal:/);
   });
@@ -525,6 +540,7 @@ describe("pruneToolOutputs", () => {
     ];
 
     const result = pruneToolOutputs(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const todoPart = result.messages[0].parts[0] as any;
     // Output should be the original object, not a placeholder
     expect(todoPart.output).toEqual(
@@ -558,6 +574,7 @@ describe("pruneToolOutputs", () => {
       ];
 
       const result = pruneToolOutputs(messages, 5, NO_MIN);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const part = result.messages[0].parts[0] as any;
       expect(part.output).toEqual({ data: "x".repeat(5000) });
     }
@@ -754,6 +771,7 @@ describe("compactMessageForStorage", () => {
       toolOutputTokenBudget: 10_000,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const part = result.message.parts[0] as any;
     expect(result.compacted).toBe(true);
     expect(result.strippedUiOnlyFields).toBe(true);
@@ -954,12 +972,14 @@ describe("pruneModelMessages", () => {
     expect(result.tokensSaved).toBeGreaterThan(0);
 
     // Old tool result should be placeholder
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const oldToolMsg = result.messages[2] as any;
     expect(oldToolMsg.content[0].output).toMatch(
       /\[Terminal: ran 'old-cmd', exit code 0\]/,
     );
 
     // New tool result should be intact
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const newToolMsg = result.messages[4] as any;
     expect(newToolMsg.content[0].output).toEqual({ stdout: "ok", exitCode: 0 });
   });
@@ -1001,6 +1021,7 @@ describe("pruneModelMessages", () => {
     ];
 
     const result = pruneModelMessages(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filePart = (result.messages[1] as any).content[0];
     expect(filePart.output).toMatch(
       /\[File: read \/src\/index\.ts \(50 lines\)\]/,
@@ -1036,6 +1057,7 @@ describe("pruneModelMessages", () => {
     ];
 
     const result = pruneModelMessages(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const todoPart = (result.messages[1] as any).content[0];
     expect(todoPart.output).toEqual(
       expect.objectContaining({ todos: expect.any(Array) }),
@@ -1112,6 +1134,7 @@ describe("pruneModelMessages", () => {
     ];
 
     pruneModelMessages(messages, 5, NO_MIN);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const origPart = (messages[1] as any).content[0];
     expect(origPart.output).toBe(originalOutput);
   });

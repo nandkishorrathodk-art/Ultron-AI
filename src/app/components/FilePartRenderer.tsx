@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs, react-hooks/immutability, react-hooks/static-components */
 import Image from "next/image";
 import React, {
   useState,

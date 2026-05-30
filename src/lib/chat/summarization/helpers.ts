@@ -147,6 +147,7 @@ export const generateSummaryText = async (
     tools: nopTools,
     abortSignal,
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     providerOptions: providerOptions as any,
     messages: [
       ...(modelMessages ?? (await convertToModelMessages(messagesToSummarize))),

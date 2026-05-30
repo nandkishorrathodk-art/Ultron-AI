@@ -7,6 +7,7 @@ import { useToolSidebar } from "../../hooks/useToolSidebar";
 import { isUserStoppedToolError } from "@/lib/chat/tool-abort-utils";
 
 interface ProxyToolHandlerProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
   /** The tool name without "tool-" prefix, e.g. "list_requests" */
@@ -41,6 +42,7 @@ function padRight(str: string, len: number): string {
     : str + " ".repeat(len - str.length);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatListRequests(r: any): string {
   const requests = r.requests ?? [];
   if (!requests.length) return "No requests captured.";
@@ -70,6 +72,7 @@ function formatListRequests(r: any): string {
   return lines.join("\n");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatViewRequest(r: any): string {
   if (r.matches) {
     const lines: string[] = [
@@ -88,6 +91,7 @@ function formatViewRequest(r: any): string {
   return header + (r.content ?? "");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatSendRequest(r: any): string {
   const lines: string[] = [];
 
@@ -113,6 +117,7 @@ function formatSendRequest(r: any): string {
   return lines.join("\n");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatScopeRules(r: any): string {
   if (r.scope) {
     const s = r.scope;
@@ -137,6 +142,7 @@ function formatScopeRules(r: any): string {
   return JSON.stringify(r, null, 2);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatListSitemap(r: any): string {
   const entries = r.entries ?? [];
   if (!entries.length) return "No sitemap entries.";
@@ -161,6 +167,7 @@ function formatListSitemap(r: any): string {
   return lines.join("\n");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatViewSitemapEntry(r: any): string {
   const e = r.entry;
   if (!e) return JSON.stringify(r, null, 2);
@@ -196,6 +203,7 @@ function formatViewSitemapEntry(r: any): string {
   return lines.join("\n");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function formatProxyOutput(toolName: string, result: any): string {
   try {
     switch (toolName) {

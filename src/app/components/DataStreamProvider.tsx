@@ -11,6 +11,7 @@ import type { DataUIPart } from "ai";
 
 // --- State context (changes frequently during streaming) ---
 interface DataStreamStateValue {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dataStream: DataUIPart<any>[];
   isAutoResuming: boolean;
   autoContinueCount: number;
@@ -18,6 +19,7 @@ interface DataStreamStateValue {
 
 // --- Dispatch context (stable references, never causes re-renders) ---
 interface DataStreamDispatchValue {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setDataStream: React.Dispatch<React.SetStateAction<DataUIPart<any>[]>>;
   setIsAutoResuming: React.Dispatch<React.SetStateAction<boolean>>;
   setAutoContinueCount: React.Dispatch<React.SetStateAction<number>>;
@@ -33,6 +35,7 @@ export function DataStreamProvider({
 }: {
   children: React.ReactNode;
 }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [dataStream, setDataStream] = useState<DataUIPart<any>[]>([]);
   const [isAutoResuming, setIsAutoResuming] = useState<boolean>(false);
   const [autoContinueCount, setAutoContinueCount] = useState<number>(0);

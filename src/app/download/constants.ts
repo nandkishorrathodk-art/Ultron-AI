@@ -1,5 +1,5 @@
 const GITHUB_RELEASE_BASE =
-  "https://github.com/Ultron-AI-tech/Ultron-AI/releases/latest/download";
+  "https://github.com/nandkishorrathodk-art/Ultron-AI/releases/latest/download";
 
 export const downloadLinks = {
   macos: `${GITHUB_RELEASE_BASE}/Ultron-AI-universal.dmg`,

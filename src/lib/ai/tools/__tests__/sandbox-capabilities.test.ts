@@ -35,6 +35,7 @@ describe("Sandbox Capabilities for Network Tools", () => {
     it("should include user:root and cwd:/home/user for E2B sandbox", () => {
       const e2bSandbox = createMockE2BSandbox();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const options = buildSandboxCommandOptions(e2bSandbox as any);
 
       expect(options).toHaveProperty("user", "root");
@@ -45,6 +46,7 @@ describe("Sandbox Capabilities for Network Tools", () => {
     it("should NOT include user:root for CentrifugoSandbox (uses Docker capabilities)", () => {
       const centrifugoSandbox = createMockCentrifugoSandbox();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const options = buildSandboxCommandOptions(centrifugoSandbox as any);
 
       expect(options).not.toHaveProperty("user");
@@ -57,6 +59,7 @@ describe("Sandbox Capabilities for Network Tools", () => {
       const onStdout = jest.fn();
       const onStderr = jest.fn();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const options = buildSandboxCommandOptions(centrifugoSandbox as any, {
         onStdout,
         onStderr,
@@ -72,7 +75,9 @@ describe("Sandbox Capabilities for Network Tools", () => {
       const e2bSandbox = createMockE2BSandbox();
       const centrifugoSandbox = createMockCentrifugoSandbox();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isE2BSandbox(e2bSandbox as any)).toBe(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(isE2BSandbox(centrifugoSandbox as any)).toBe(false);
       expect(isE2BSandbox(null)).toBe(false);
     });

@@ -46,7 +46,9 @@ function priceBillingInterval(
   return price?.recurring?.interval ?? undefined;
 }
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL || "https://dummy.convex.cloud");
+const convex = new ConvexHttpClient(
+  process.env.NEXT_PUBLIC_CONVEX_URL || "https://dummy.convex.cloud",
+);
 
 // =============================================================================
 // Tier Resolution
@@ -202,7 +204,9 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
         `[Subscription Webhook] invoice.paid (upgrade): prorating ${tier} buckets for ${tierChangeUsers.length} user(s)`,
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const periodStart = (subscription as any).current_period_start as number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const periodEnd = (subscription as any).current_period_end as number;
       const now = Math.floor(Date.now() / 1000);
       const totalDuration = periodEnd - periodStart;
@@ -301,6 +305,7 @@ async function handleSubscriptionUpdated(
   previousAttributes: Partial<Stripe.Subscription> | undefined,
 ): Promise<void> {
   // Only act if the subscription items actually changed (plan change)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const previousItems = (previousAttributes as any)?.items;
   if (!previousItems) return;
 

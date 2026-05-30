@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -215,9 +216,11 @@ export const ShareDialog = ({
                           const isUser = message.role === "user";
                           const parts = message.parts || [];
                           const fileParts = parts.filter(
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (p: any) => p.type === "file",
                           );
                           const nonFileParts = parts.filter(
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             (p: any) => p.type !== "file",
                           );
                           const uiMessage = {
@@ -249,6 +252,7 @@ export const ShareDialog = ({
                                 {isUser && fileParts.length > 0 && (
                                   <div className="flex flex-wrap items-center justify-end gap-2 w-full">
                                     {fileParts.map(
+                                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                       (part: any, partIndex: number) => (
                                         <FilePartRenderer
                                           key={`${message.id}-file-${partIndex}`}
@@ -276,9 +280,11 @@ export const ShareDialog = ({
                                     {isUser ? (
                                       <div className="whitespace-pre-wrap">
                                         {nonFileParts.map(
+                                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                           (part: any, partIndex: number) => (
                                             <MessagePartHandler
                                               key={`${message.id}-${partIndex}`}
+                                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                               message={uiMessage as any}
                                               part={part}
                                               partIndex={partIndex}
@@ -289,9 +295,11 @@ export const ShareDialog = ({
                                       </div>
                                     ) : (
                                       parts.map(
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         (part: any, partIndex: number) => (
                                           <MessagePartHandler
                                             key={`${message.id}-${partIndex}`}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             message={uiMessage as any}
                                             part={part}
                                             partIndex={partIndex}

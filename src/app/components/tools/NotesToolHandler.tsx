@@ -13,6 +13,7 @@ import {
 } from "./notes-tool-utils";
 
 interface NotesToolHandlerProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   status: ChatStatus;
   toolName: NotesToolName;

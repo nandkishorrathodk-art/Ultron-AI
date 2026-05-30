@@ -4,6 +4,7 @@ import { encode, decode } from "gpt-tokenizer";
 const MODERATION_TOKEN_LIMIT = 512;
 
 export async function getModerationResult(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages: any[],
   isPaidUser: boolean,
 ): Promise<{ shouldUncensorResponse: boolean; moderationText: string }> {
@@ -56,16 +57,19 @@ export async function getModerationResult(
     // );
 
     return { shouldUncensorResponse, moderationText: input };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (_error: any) {
     // console.error('Error in getModerationResult:', error);
     return { shouldUncensorResponse: false, moderationText: "" };
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function findTargetMessage(messages: any[], minLength: number): any | null {
   const MIN_FALLBACK_LENGTH = 5;
   let combinedContent = "";
   let userMessagesChecked = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messagesToCombine: any[] = [];
 
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -77,7 +81,9 @@ function findTargetMessage(messages: any[], minLength: number): any | null {
       // Handle UIMessage format with parts array
       if (message.parts && Array.isArray(message.parts)) {
         const textContent = message.parts
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((part: any) => part.type === "text")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((part: any) => part.text)
           .join(" ");
 
@@ -106,7 +112,9 @@ function findTargetMessage(messages: any[], minLength: number): any | null {
   return null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createCombinedMessage(messages: any[]): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const combinedParts: any[] = [];
 
   // Reverse to get chronological order
@@ -114,6 +122,7 @@ function createCombinedMessage(messages: any[]): any {
     const message = messages[i];
     if (message.parts && Array.isArray(message.parts)) {
       const textParts = message.parts.filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part: any) => part.type === "text",
       );
       combinedParts.push(...textParts);
@@ -126,11 +135,14 @@ function createCombinedMessage(messages: any[]): any {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function prepareInput(message: any): string {
   // Handle UIMessage format with parts array
   if (message.parts && Array.isArray(message.parts)) {
     const textContent = message.parts
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((part: any) => part.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((part: any) => part.text || "")
       .join(" ");
 

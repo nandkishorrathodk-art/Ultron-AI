@@ -96,6 +96,7 @@ describe("CentrifugoSandbox", () => {
     mockSubscriptions = [];
     mockClients = [];
     jest.useFakeTimers();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     crypto.randomUUID = jest.fn(() => FIXED_UUID) as any;
   });
 
@@ -271,6 +272,7 @@ describe("CentrifugoSandbox", () => {
 
       expect(sub.unsubscribe).toHaveBeenCalled();
       expect(client.disconnect).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((sandbox as any).activeClients).toHaveLength(0);
     });
 
@@ -288,6 +290,7 @@ describe("CentrifugoSandbox", () => {
       await expect(promise).rejects.toThrow("timeout");
 
       expect(client.disconnect).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((sandbox as any).activeClients).toHaveLength(0);
     });
   });
@@ -465,12 +468,14 @@ describe("CentrifugoSandbox", () => {
       await jest.advanceTimersByTimeAsync(0);
 
       expect(mockClients).toHaveLength(2);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((sandbox as any).activeClients).toHaveLength(2);
 
       await sandbox.close();
 
       expect(mockClients[0].disconnect).toHaveBeenCalled();
       expect(mockClients[1].disconnect).toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((sandbox as any).activeClients).toHaveLength(0);
 
       // Clean up pending promises
@@ -484,11 +489,13 @@ describe("CentrifugoSandbox", () => {
       jest.useRealTimers();
 
       let callCount = 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       crypto.randomUUID = jest.fn(() => `cmd-uuid-${++callCount}`) as any;
 
       // Patch each new MockCentrifugeClient's newSubscription to create
       // subscriptions that auto-emit "subscribed" when subscribe() is called,
       // and auto-resolve commands when publish() is called.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const origFactory = (require("centrifuge") as { Centrifuge: jest.Mock })
         .Centrifuge;
       origFactory.mockImplementation(() => {
@@ -558,13 +565,17 @@ describe("CentrifugoSandbox", () => {
         },
       });
       // Short-circuit caches so commands.run isn't invoked for detection.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sandbox as any).shellKind = "bash";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sandbox as any).httpClient = "curl";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sandbox as any).curlCaps = {
         retryAllErrors: true,
         retryConnrefused: true,
       };
       const runs: string[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sandbox as any).commands.run = jest.fn(async (cmd: string) => {
         runs.push(cmd);
         return { stdout: "", stderr: "", exitCode: 0 };
@@ -593,6 +604,7 @@ describe("CentrifugoSandbox", () => {
 
     it("ensureDirectory emits mkdir -p with MSYS path", async () => {
       const { sandbox, runs } = createWindowsBashSandbox();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sandbox as any).ensureDirectory("C:\\temp\\Ultron-AI-upload");
       expect(runs[0]).toBe("mkdir -p '/c/temp/Ultron-AI-upload'");
     });

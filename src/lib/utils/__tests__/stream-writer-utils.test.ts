@@ -4,6 +4,7 @@ import type { UIMessageStreamWriter } from "ai";
 jest.doMock("server-only", () => ({}));
 
 const { writeAutoContinue } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("../stream-writer-utils") as typeof import("../stream-writer-utils");
 
 describe("writeAutoContinue", () => {

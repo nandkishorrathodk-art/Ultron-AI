@@ -4,14 +4,18 @@ import { getMessagePersistenceDiagnostics } from "../message-persistence-diagnos
 describe("getMessagePersistenceDiagnostics", () => {
   it("summarizes message parts without exposing part content", () => {
     const diagnostics = getMessagePersistenceDiagnostics([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { type: "text", text: "hello secret text" } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { type: "reasoning", text: "private chain" } as any,
       {
         type: "tool-run_terminal_cmd",
         state: "output-available",
         input: { command: "cat secret.txt" },
         output: { result: { output: "secret output" } },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { type: "data-terminal", data: { terminal: "secret stream" } } as any,
     ]);
 

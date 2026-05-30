@@ -84,6 +84,7 @@ export function selectModel(
  */
 function hasImageOrPdfAttachment(messages: UIMessage[]): boolean {
   return messages.some((msg) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     msg.parts?.some((part: any) => {
       if (part.type !== "file") return false;
       const mediaType: string = part.mediaType ?? "";
@@ -108,6 +109,7 @@ export function addAuthMessage(messages: UIMessage[], moderationText: string) {
       }
 
       const textParts = message.parts.filter(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part: any) => part.type === "text",
       ) as Array<{ type: "text"; text: string }>;
 
@@ -170,6 +172,7 @@ function logIncompleteToolPartHandled({
   context,
 }: {
   action: "converted_to_output_error" | "dropped";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   part: any;
   context?: IncompleteMessagePartsLogContext;
 }) {
@@ -204,6 +207,7 @@ function logIncompleteToolPartHandled({
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createAbortedToolPart(part: any): any | null {
   if (
     !ABORT_RENDERABLE_TOOL_TYPES.has(part.type) ||
@@ -234,10 +238,13 @@ function createAbortedToolPart(part: any): any | null {
  * This function is exported for use in db/actions.ts as well.
  */
 export function fixIncompleteMessageParts(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parts: any[],
   options?: { logContext?: IncompleteMessagePartsLogContext },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any[] {
   // First pass: fix incomplete tool invocations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const partsWithFixedTools = parts.map((part: any) => {
     // Check for custom tool-xxx parts that aren't in a completed state
     const isToolPart = part.type && part.type.startsWith("tool-");
@@ -291,6 +298,7 @@ export function fixIncompleteMessageParts(
   });
 
   // Second pass: remove incomplete reasoning, removed tool parts, and their preceding step-starts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filteredParts: any[] = [];
   for (let i = 0; i < partsWithFixedTools.length; i++) {
     const part = partsWithFixedTools[i];
@@ -345,6 +353,7 @@ export function fixIncompleteMessageParts(
   if (lastStepStartIdx >= 0) {
     const lastStepHasContent = filteredParts
       .slice(lastStepStartIdx + 1)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .some((part: any) => {
         if (part.type === "text") return !!part.text?.trim();
         if (part.type?.startsWith("tool-") || part.type === "dynamic-tool")
@@ -400,15 +409,18 @@ function removeDuplicateToolParts(messages: UIMessage[]): UIMessage[] {
     const customToolIds = new Set(
       message.parts
         .filter(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (p: any) =>
             p.type?.startsWith("tool-") &&
             p.type !== "dynamic-tool" &&
             p.toolCallId,
         )
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((p: any) => p.toolCallId),
     );
 
     // Filter out dynamic-tool parts that duplicate custom tool-xxx parts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filteredParts = message.parts.filter((p: any) => {
       if (p.type === "dynamic-tool" && customToolIds.has(p.toolCallId)) {
         return false; // Skip this duplicate
@@ -443,6 +455,7 @@ function stripOriginalContentFromMessages(messages: UIMessage[]): UIMessage[] {
     }
 
     let hasChanges = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cleanedParts = message.parts.map((part: any) => {
       // Process tool-file parts with read, edit, or append action and object output
       if (
@@ -484,11 +497,15 @@ function stripOriginalContentFromMessages(messages: UIMessage[]): UIMessage[] {
           part.type === "tool-interact_terminal_session") &&
         typeof part.output === "object" &&
         part.output !== null &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         typeof (part.output as any).result === "object" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (part.output as any).result !== null &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         "rawSnapshot" in (part.output as any).result
       ) {
         hasChanges = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { rawSnapshot, ...restResult } = (part.output as any).result;
         return {
           ...part,
@@ -518,6 +535,7 @@ export function limitImageParts(
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     if (!msg.parts) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (msg.parts as any[]).forEach((part: any, j) => {
       if (
         part.type === "file" &&
@@ -574,6 +592,7 @@ function stripProviderMetadata(messages: UIMessage[]): UIMessage[] {
     if (!message.parts) return message;
 
     let hasChanges = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cleanedParts = message.parts.map((part: any) => {
       if (
         part.providerMetadata ||
@@ -604,10 +623,12 @@ const UI_ONLY_PART_TYPES = new Set(["data-summarization"]);
 /**
  * Filters out UI-only parts from a message that AI providers don't understand.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const filterUIOnlyParts = <T extends { parts?: any[] }>(message: T): T => {
   if (!message.parts) return message;
 
   const filteredParts = message.parts.filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (part: any) => !UI_ONLY_PART_TYPES.has(part.type),
   );
 
@@ -671,6 +692,7 @@ export async function processChatMessages({
     // For assistant messages, we need actual content (text or tool parts), not just reasoning/step-start
     // Gemini specifically requires text or tool content, reasoning alone causes errors
     if (msg.role === "assistant") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return msg.parts.some((part: any) => {
         // Text parts need actual text content
         if (part.type === "text") return part.text?.trim().length > 0;
@@ -684,6 +706,7 @@ export async function processChatMessages({
     }
 
     // For user messages, check that at least one part has meaningful content
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return msg.parts.some((part: any) => {
       if (part.type === "text") return part.text?.trim().length > 0;
       if (part.type === "file") return !!part.url || !!part.fileId;

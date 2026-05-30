@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { getOrCreateSandbox, getDesktopStreamUrl } from "@/lib/sandbox-manager";
 
@@ -8,12 +9,17 @@ export async function GET(req: Request) {
     const init = searchParams.get("init") === "true";
 
     if (!sessionId) {
-      return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "sessionId is required" },
+        { status: 400 },
+      );
     }
 
     if (init) {
       // Create or get desktop sandbox using the "desktop" template
-      console.log(`[Ultron] Initializing desktop sandbox for session: ${sessionId}`);
+      console.log(
+        `[Ultron] Initializing desktop sandbox for session: ${sessionId}`,
+      );
       await getOrCreateSandbox(sessionId, "desktop");
     }
 

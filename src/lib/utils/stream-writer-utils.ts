@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 
 import { UIMessagePart, UIMessageStreamWriter } from "ai";
@@ -59,6 +60,7 @@ export const writeSummarizationCompleted = (
   });
 };
 
+ 
 export const createSummarizationCompletedPart = (): UIMessagePart<
   any,
   any
@@ -77,6 +79,7 @@ export const createSummarizationCompletedPart = (): UIMessagePart<
  * so the badge appears at the correct position in the conversation.
  */
 export const findSummarizationInsertIndex = (
+   
   parts: UIMessagePart<any, any>[],
   stepNumber: number,
 ): number => {

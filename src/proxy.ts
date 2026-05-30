@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 
 /**
- * Ultron-AI Custom JWT Middleware
+ * Ultron-AI Custom JWT Proxy
  * ═══════════════════════════════════════════════════════════
  * Strong custom authentication with:
  * - JWT verification with RS256/HS256
@@ -13,7 +13,6 @@ import { jwtVerify } from "jose";
  */
 
 const PUBLIC_PATHS = new Set([
-  "/",
   "/landing",
   "/login",
   "/signup",
@@ -51,10 +50,13 @@ function isBrowserRequest(request: NextRequest): boolean {
 }
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || process.env.AUTH_SECRET || "ultron-ai-default-secret-change-in-production",
+  process.env.JWT_SECRET ||
+    process.env.SESSION_SECRET ||
+    process.env.AUTH_SECRET ||
+    "ultron-ai-default-secret-change-in-production",
 );
 
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Always allow public paths
@@ -62,21 +64,18 @@ export default async function middleware(request: NextRequest) {
     return addSecurityHeaders(NextResponse.next());
   }
 
-  // Static files — skip middleware
-  if (
-    pathname.includes(".") &&
-    !pathname.startsWith("/api/")
-  ) {
+  // Static files — skip proxy
+  if (pathname.includes(".") && !pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
 
   // Extract JWT token
   const token =
-    request.cookies.get("ultron-session")?.value ||
+    request.cookies.get("ultron_session")?.value ||
     request.headers.get("authorization")?.replace("Bearer ", "");
 
   if (!token) {
-    // No token — redirect browser requests to login, return 401 for API
+    // No token — redirect browser requests to login or landing
     if (!isBrowserRequest(request)) {
       return NextResponse.json(
         {
@@ -85,6 +84,10 @@ export default async function middleware(request: NextRequest) {
         },
         { status: 401 },
       );
+    }
+    // Unauthenticated users visiting / see the landing page
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/landing", request.url));
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
@@ -102,8 +105,14 @@ export default async function middleware(request: NextRequest) {
     requestHeaders.set("x-user-id", (payload.sub || payload.userId) as string);
     requestHeaders.set("x-user-email", (payload.email || "") as string);
     requestHeaders.set("x-user-role", (payload.role || "user") as string);
-    requestHeaders.set("x-user-entitlements", JSON.stringify(payload.entitlements || []));
-    requestHeaders.set("x-user-subscription", (payload.subscription || "free") as string);
+    requestHeaders.set(
+      "x-user-entitlements",
+      JSON.stringify(payload.entitlements || []),
+    );
+    requestHeaders.set(
+      "x-user-subscription",
+      (payload.subscription || "free") as string,
+    );
 
     const response = NextResponse.next({
       request: { headers: requestHeaders },
@@ -111,10 +120,11 @@ export default async function middleware(request: NextRequest) {
 
     return addSecurityHeaders(response);
   } catch {
-    // Invalid/expired token
-    // Clear the bad cookie
+    // Invalid/expired token — clear the bad cookie
     const response = isBrowserRequest(request)
-      ? NextResponse.redirect(new URL("/login?error=session_expired", request.url))
+      ? NextResponse.redirect(
+          new URL("/login?error=session_expired", request.url),
+        )
       : NextResponse.json(
           {
             code: "unauthorized",
@@ -123,7 +133,7 @@ export default async function middleware(request: NextRequest) {
           { status: 401 },
         );
 
-    response.cookies.delete("ultron-session");
+    response.cookies.delete("ultron_session");
     return addSecurityHeaders(response);
   }
 }

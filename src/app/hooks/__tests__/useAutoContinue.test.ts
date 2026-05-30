@@ -44,6 +44,7 @@ function pushAutoContinue(
 ): DataStreamEntry[] {
   const updated = [...previous, { type: "data-auto-continue", data: {} }];
   act(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     result.current.setDataStream(updated as any);
   });
   return updated;

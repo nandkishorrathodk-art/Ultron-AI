@@ -5,6 +5,7 @@ const loadSaveMessageWithMocks = async () => {
   process.env.NEXT_PUBLIC_CONVEX_URL = "https://example.convex.cloud";
 
   const mockMutation = jest.fn().mockResolvedValue({ id: "message-1" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockCompactMessageForStorage = jest.fn((message: any) => {
     const sizeBytes = JSON.stringify(message.parts).length;
     return {
@@ -53,6 +54,7 @@ describe("saveMessage", () => {
               state: "output-available",
               input: { command: "echo hi" },
               output: circularOutput,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any,
           ],
         },

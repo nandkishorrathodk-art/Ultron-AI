@@ -34,7 +34,10 @@ setInterval(() => {
 }, 60_000);
 
 // ─── Get or Create Sandbox ────────────────────────────────────────────────────
-export async function getOrCreateSandbox(sessionId: string, template?: string): Promise<Sandbox> {
+export async function getOrCreateSandbox(
+  sessionId: string,
+  template?: string,
+): Promise<Sandbox> {
   const existing = sandboxSessions.get(sessionId);
   if (existing) {
     existing.lastUsed = Date.now();
@@ -42,8 +45,11 @@ export async function getOrCreateSandbox(sessionId: string, template?: string): 
     return existing.sandbox;
   }
 
-  console.log(`[Ultron] Creating new sandbox for session: ${sessionId}${template ? ` with template: ${template}` : ""}`);
-  
+  console.log(
+    `[Ultron] Creating new sandbox for session: ${sessionId}${template ? ` with template: ${template}` : ""}`,
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const options: any = { apiKey: process.env.E2B_API_KEY! };
   if (template) {
     options.template = template;
@@ -53,8 +59,8 @@ export async function getOrCreateSandbox(sessionId: string, template?: string): 
   // Bootstrap pentest workspace on first creation
   await sandbox.commands.run(
     "mkdir -p /home/user/pentest && " +
-    "echo '# Ultron Pentest Session' > /home/user/pentest/findings.md && " +
-    "echo 'Session started: ' $(date) >> /home/user/pentest/findings.md"
+      "echo '# Ultron Pentest Session' > /home/user/pentest/findings.md && " +
+      "echo 'Session started: ' $(date) >> /home/user/pentest/findings.md",
   );
 
   sandboxSessions.set(sessionId, { sandbox, lastUsed: Date.now(), logs: [] });
@@ -86,7 +92,11 @@ export async function killSandbox(sessionId: string): Promise<boolean> {
 }
 
 // ─── Add Sandbox Execution Log ───────────────────────────────────────────────
-export function addSandboxLog(sessionId: string, command: string, output: string) {
+export function addSandboxLog(
+  sessionId: string,
+  command: string,
+  output: string,
+) {
   const session = sandboxSessions.get(sessionId);
   if (session) {
     session.logs.push({

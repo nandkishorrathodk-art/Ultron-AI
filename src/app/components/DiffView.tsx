@@ -20,6 +20,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
   wrap = true,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("diff");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
 
   // Safely dispose editor on unmount to prevent "TextModel got disposed" errors
@@ -34,6 +35,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     };
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEditorMount = (editor: any) => {
     editorRef.current = editor;
   };

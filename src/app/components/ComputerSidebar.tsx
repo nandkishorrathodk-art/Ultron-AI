@@ -39,6 +39,7 @@ interface ComputerSidebarProps {
   sidebarOpen: boolean;
   sidebarContent: SidebarContent | null;
   closeSidebar: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages?: any[];
   onNavigate?: (content: SidebarContent) => void;
   status?: ChatStatus;
@@ -762,6 +763,7 @@ export const ComputerSidebarBase: React.FC<ComputerSidebarProps> = ({
 
 // Wrapper for normal chats using GlobalState
 export const ComputerSidebar: React.FC<{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages?: any[];
   status?: ChatStatus;
 }> = ({ messages, status }) => {

@@ -164,6 +164,7 @@ export const Messages = ({
   const [showAllFilesDialog, setShowAllFilesDialog] = useState(false);
   const [dialogFiles, setDialogFiles] = useState<
     Array<{
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       part: any;
       partIndex: number;
       messageId: string;

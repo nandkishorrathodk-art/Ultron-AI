@@ -217,6 +217,7 @@ Commands run directly on the host OS "${hostname}" without Docker isolation. Be 
         let stderr = "";
         let settled = false;
         let timeoutId: NodeJS.Timeout | undefined;
+        // eslint-disable-next-line prefer-const
         let subscription: Subscription | undefined;
         let publishedCommand = false;
         let commandPublishInFlight = false;

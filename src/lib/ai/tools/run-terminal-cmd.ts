@@ -410,6 +410,7 @@ In using these tools, adhere to the following guidelines:
             await new Promise((resolve) => setTimeout(resolve, 2000));
 
             // Reset cached instance to force ensureSandboxConnection to create a fresh one
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             sandboxManager.setSandbox(null as any);
             const { sandbox: freshSandbox } = await sandboxManager.getSandbox();
 
@@ -480,6 +481,7 @@ In using these tools, adhere to the following guidelines:
 
           return new Promise((resolve, reject) => {
             let resolved = false;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             let execution: any = null;
             let handler: ReturnType<typeof createTerminalHandler> | null = null;
             let processId: number | null = null; // Store PID for all processes
@@ -511,7 +513,9 @@ In using these tools, adhere to the following guidelines:
               }
 
               // Try to get PID from execution object first (cheap, no shell call)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               if (!processId && execution && (execution as any)?.pid) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 processId = (execution as any).pid;
               }
 
@@ -578,7 +582,9 @@ In using these tools, adhere to the following guidelines:
                   }
 
                   // Try to get PID from execution object first (if available)
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   if (!processId && execution && (execution as any)?.pid) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     processId = (execution as any).pid;
                   }
 

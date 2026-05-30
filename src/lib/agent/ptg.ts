@@ -14,7 +14,12 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Finding {
-  type: "open_port" | "service" | "vulnerability" | "credential" | "shell_access";
+  type:
+    | "open_port"
+    | "service"
+    | "vulnerability"
+    | "credential"
+    | "shell_access";
   severity: "info" | "low" | "medium" | "high" | "critical";
   description: string;
   raw_output: string;
@@ -23,10 +28,10 @@ export interface Finding {
   epss_score: number;
   remediation: string;
   evidence: string;
-  validated?: boolean;         // NEW: deterministic validation flag
-  chain_id?: string;           // NEW: if part of a vuln chain
-  endpoint?: string;           // NEW: specific endpoint where found
-  mitre_technique?: string;    // NEW: MITRE ATT&CK technique
+  validated?: boolean; // NEW: deterministic validation flag
+  chain_id?: string; // NEW: if part of a vuln chain
+  endpoint?: string; // NEW: specific endpoint where found
+  mitre_technique?: string; // NEW: MITRE ATT&CK technique
 }
 
 export interface PTGNode {
@@ -57,9 +62,9 @@ export interface PTGNode {
     timeout_at: number;
   };
   // NEW fields
-  error_log?: string[];        // Track errors for adaptive reasoning
-  strategy_id?: string;        // Which attack strategy was used
-  execution_time_ms?: number;  // How long the task took
+  error_log?: string[]; // Track errors for adaptive reasoning
+  strategy_id?: string; // Which attack strategy was used
+  execution_time_ms?: number; // How long the task took
 }
 
 // ─── Statistics ───────────────────────────────────────────────────────────────
@@ -76,8 +81,8 @@ export interface PTGStats {
   criticalFindings: number;
   highFindings: number;
   validatedFindings: number;
-  coveragePercent: number;     // (completed / total) * 100
-  successRate: number;         // (success / (success + failed)) * 100
+  coveragePercent: number; // (completed / total) * 100
+  successRate: number; // (success / (success + failed)) * 100
 }
 
 // ─── PTG Class ────────────────────────────────────────────────────────────────
@@ -116,12 +121,13 @@ export class PenetrationTaskGraph {
    */
   getExecutableTasks(): PTGNode[] {
     return Array.from(this.nodes.values())
-      .filter((n) =>
-        n.status === "pending" &&
-        n.parent_ids.every((parentId) => {
-          const parent = this.nodes.get(parentId);
-          return parent?.status === "success" || parent?.status === "skipped";
-        })
+      .filter(
+        (n) =>
+          n.status === "pending" &&
+          n.parent_ids.every((parentId) => {
+            const parent = this.nodes.get(parentId);
+            return parent?.status === "success" || parent?.status === "skipped";
+          }),
       )
       .sort((a, b) => a.priority - b.priority);
   }
@@ -132,7 +138,8 @@ export class PenetrationTaskGraph {
    */
   getParallelBranches(): PTGNode[][] {
     const executable = this.getExecutableTasks();
-    if (executable.length <= 1) return executable.length === 1 ? [executable] : [];
+    if (executable.length <= 1)
+      return executable.length === 1 ? [executable] : [];
 
     // Group by phase — tasks in the same phase are usually parallelizable
     const phaseGroups = new Map<string, PTGNode[]>();
@@ -168,9 +175,7 @@ export class PenetrationTaskGraph {
 
     node.status = "success";
     node.completed_at = Date.now();
-    node.execution_time_ms = node.started_at
-      ? Date.now() - node.started_at
-      : 0;
+    node.execution_time_ms = node.started_at ? Date.now() - node.started_at : 0;
     node.findings = findings;
     this.allFindings.push(...findings);
 
@@ -196,14 +201,18 @@ export class PenetrationTaskGraph {
       // Retry — reset to pending
       node.status = "pending";
       node.started_at = null;
-      console.log(`[PTG] Task ${node.title} failed (attempt ${node.retry_count}/${node.max_retries}), retrying...`);
+      console.log(
+        `[PTG] Task ${node.title} failed (attempt ${node.retry_count}/${node.max_retries}), retrying...`,
+      );
       return true;
     }
 
     // Permanently failed
     node.status = "failed";
     node.completed_at = Date.now();
-    console.log(`[PTG] Task ${node.title} permanently failed after ${node.max_retries} attempts`);
+    console.log(
+      `[PTG] Task ${node.title} permanently failed after ${node.max_retries} attempts`,
+    );
 
     // Skip dependent children
     this.skipDependents(taskId);
@@ -243,7 +252,9 @@ export class PenetrationTaskGraph {
       parent.child_ids.push(child.task_id);
     }
 
-    console.log(`[PTG] Spawned ${children.length} child tasks from "${parent.title}"`);
+    console.log(
+      `[PTG] Spawned ${children.length} child tasks from "${parent.title}"`,
+    );
   }
 
   // ─── Internal Helpers ───────────────────────────────────────
@@ -306,19 +317,26 @@ export class PenetrationTaskGraph {
     }
 
     const completed = byStatus.success + byStatus.failed + byStatus.skipped;
-    const validatedFindings = this.allFindings.filter((f) => f.validated).length;
+    const validatedFindings = this.allFindings.filter(
+      (f) => f.validated,
+    ).length;
 
     return {
       totalTasks: total,
       ...byStatus,
       totalFindings: this.allFindings.length,
-      criticalFindings: this.allFindings.filter((f) => f.severity === "critical").length,
-      highFindings: this.allFindings.filter((f) => f.severity === "high").length,
+      criticalFindings: this.allFindings.filter(
+        (f) => f.severity === "critical",
+      ).length,
+      highFindings: this.allFindings.filter((f) => f.severity === "high")
+        .length,
       validatedFindings,
       coveragePercent: total > 0 ? Math.round((completed / total) * 100) : 0,
       successRate:
         byStatus.success + byStatus.failed > 0
-          ? Math.round((byStatus.success / (byStatus.success + byStatus.failed)) * 100)
+          ? Math.round(
+              (byStatus.success / (byStatus.success + byStatus.failed)) * 100,
+            )
           : 0,
     };
   }
@@ -332,6 +350,7 @@ export class PenetrationTaskGraph {
   /**
    * Serialize the entire PTG to a JSON-safe object for Convex storage.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   serialize(): any {
     return {
       nodes: Array.from(this.nodes.entries()).map(([id, node]) => ({
@@ -346,6 +365,7 @@ export class PenetrationTaskGraph {
   /**
    * Restore a PTG from a serialized object (e.g., from Convex).
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   static deserialize(data: any): PenetrationTaskGraph {
     const ptg = new PenetrationTaskGraph();
 
@@ -398,7 +418,7 @@ export class PenetrationTaskGraph {
       lines.push(
         `  ${statusIcon} ${riskIcon} [P${node.priority}] ${node.title} (${node.phase}) ${
           node.findings.length > 0 ? `→ ${node.findings.length} findings` : ""
-        }`
+        }`,
       );
     }
 
@@ -410,7 +430,9 @@ export class PenetrationTaskGraph {
    */
   isComplete(): boolean {
     const executable = this.getExecutableTasks();
-    const running = Array.from(this.nodes.values()).filter((n) => n.status === "running");
+    const running = Array.from(this.nodes.values()).filter(
+      (n) => n.status === "running",
+    );
     return executable.length === 0 && running.length === 0;
   }
 
@@ -419,7 +441,7 @@ export class PenetrationTaskGraph {
    */
   hasActiveTasks(): boolean {
     return Array.from(this.nodes.values()).some(
-      (n) => n.status === "running" || n.status === "pending"
+      (n) => n.status === "running" || n.status === "pending",
     );
   }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Generation Module v2.0 — LLM-Powered Command Generation
  * ═══════════════════════════════════════════════════════════════
@@ -23,7 +24,7 @@ export interface GeneratedCommand {
   riskLevel: "green" | "yellow" | "red";
   justification: string;
   strategy: AttackStrategy;
-  alternative_commands: string[];  // Fallback commands if primary fails
+  alternative_commands: string[]; // Fallback commands if primary fails
 }
 
 // ─── Comprehensive Risk Classification ────────────────────────────────────────
@@ -35,15 +36,15 @@ const TOOL_RISK: Record<string, "green" | "yellow" | "red"> = {
   "nmap -sC": "green",
   "nmap -F": "green",
   "nmap -p-": "green",
-  "subfinder": "green",
-  "dnsrecon": "green",
-  "whatweb": "green",
+  subfinder: "green",
+  dnsrecon: "green",
+  whatweb: "green",
   "curl -s": "green",
   "curl -I": "green",
   "host ": "green",
   "dig ": "green",
-  "whois": "green",
-  "theHarvester": "green",
+  whois: "green",
+  theHarvester: "green",
   "amass enum": "green",
   "cat ": "green",
   "grep ": "green",
@@ -52,59 +53,59 @@ const TOOL_RISK: Record<string, "green" | "yellow" | "red"> = {
   "wc ": "green",
   "echo ": "green",
   "openssl s_client": "green",
-  "searchsploit": "green",
+  searchsploit: "green",
 
   // YELLOW — 1-click approval (active scanning)
   "nmap -A": "yellow",
   "nmap -sS": "yellow",
   "nmap --script vuln": "yellow",
   "nmap --script": "yellow",
-  "gobuster": "yellow",
-  "ffuf": "yellow",
-  "wfuzz": "yellow",
-  "nikto": "yellow",
-  "nuclei": "yellow",
+  gobuster: "yellow",
+  ffuf: "yellow",
+  wfuzz: "yellow",
+  nikto: "yellow",
+  nuclei: "yellow",
   "sqlmap --level=1": "yellow",
   "sqlmap --level=2": "yellow",
   "sqlmap --level=3": "yellow",
-  "wpscan": "yellow",
-  "dirsearch": "yellow",
-  "arjun": "yellow",
-  "dalfox": "yellow",
-  "commix": "yellow",
-  "feroxbuster": "yellow",
-  "hakrawler": "yellow",
-  "katana": "yellow",
-  "httpx": "yellow",
-  "testssl": "yellow",
+  wpscan: "yellow",
+  dirsearch: "yellow",
+  arjun: "yellow",
+  dalfox: "yellow",
+  commix: "yellow",
+  feroxbuster: "yellow",
+  hakrawler: "yellow",
+  katana: "yellow",
+  httpx: "yellow",
+  testssl: "yellow",
 
   // RED — explicit approval (exploitation, dangerous)
   "sqlmap --level=5": "red",
   "sqlmap --risk=3": "red",
-  "metasploit": "red",
-  "msfconsole": "red",
-  "msfvenom": "red",
-  "hydra": "red",
-  "medusa": "red",
+  metasploit: "red",
+  msfconsole: "red",
+  msfvenom: "red",
+  hydra: "red",
+  medusa: "red",
   "john ": "red",
-  "hashcat": "red",
+  hashcat: "red",
   "nc -e": "red",
   "ncat -e": "red",
   "bash -i": "red",
   "sh -i": "red",
-  "socat": "red",
-  "linpeas": "red",
-  "winpeas": "red",
-  "pspy": "red",
-  "mimikatz": "red",
-  "impacket": "red",
-  "crackmapexec": "red",
-  "responder": "red",
-  "bloodhound": "red",
-  "chisel": "red",
-  "ligolo": "red",
+  socat: "red",
+  linpeas: "red",
+  winpeas: "red",
+  pspy: "red",
+  mimikatz: "red",
+  impacket: "red",
+  crackmapexec: "red",
+  responder: "red",
+  bloodhound: "red",
+  chisel: "red",
+  ligolo: "red",
   "rm -rf": "red",
-  "mkfs": "red",
+  mkfs: "red",
   "dd if=": "red",
   "python3 -c": "red",
   "perl -e": "red",
@@ -135,7 +136,7 @@ export function classifyRisk(command: string): "green" | "yellow" | "red" {
 async function llmGenerateCommand(
   task: PTGNode,
   intelligence: IntelligenceContext,
-  strategy: AttackStrategy
+  strategy: AttackStrategy,
 ): Promise<{ command: string; justification: string; alternatives: string[] }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -193,9 +194,15 @@ ALT2: <alternative command 2>`;
     const alt2Match = text.match(/ALT2:\s*(.+)/);
 
     return {
-      command: commandMatch?.[1]?.trim() || task.commands[0] || `echo "No command generated for: ${task.title}"`,
-      justification: justMatch?.[1]?.trim() || `Executing ${task.phase} task: ${task.title}`,
-      alternatives: [alt1Match?.[1]?.trim(), alt2Match?.[1]?.trim()].filter(Boolean) as string[],
+      command:
+        commandMatch?.[1]?.trim() ||
+        task.commands[0] ||
+        `echo "No command generated for: ${task.title}"`,
+      justification:
+        justMatch?.[1]?.trim() || `Executing ${task.phase} task: ${task.title}`,
+      alternatives: [alt1Match?.[1]?.trim(), alt2Match?.[1]?.trim()].filter(
+        Boolean,
+      ) as string[],
     };
   } catch (err: any) {
     console.error(`[Generation] LLM generation failed: ${err.message}`);
@@ -209,7 +216,7 @@ ALT2: <alternative command 2>`;
  */
 function fallbackGeneration(
   task: PTGNode,
-  intelligence: IntelligenceContext
+  intelligence: IntelligenceContext,
 ): { command: string; justification: string; alternatives: string[] } {
   // If task already has commands, use the first one
   if (task.commands.length > 0) {
@@ -223,11 +230,18 @@ function fallbackGeneration(
   // Generate based on phase
   const target = task.title.match(/on\s+(\S+)/)?.[1] || "target";
 
-  const phaseCommands: Record<string, { command: string; justification: string; alternatives: string[] }> = {
+  const phaseCommands: Record<
+    string,
+    { command: string; justification: string; alternatives: string[] }
+  > = {
     recon: {
       command: `nmap -sV -sC -F -T4 ${target} -oN /home/user/pentest/nmap.txt`,
-      justification: "Initial reconnaissance scan to discover open ports and services",
-      alternatives: [`whatweb -a 3 ${target}`, `subfinder -d ${target} -silent`],
+      justification:
+        "Initial reconnaissance scan to discover open ports and services",
+      alternatives: [
+        `whatweb -a 3 ${target}`,
+        `subfinder -d ${target} -silent`,
+      ],
     },
     enum: {
       command: `gobuster dir -u http://${target} -w /usr/share/wordlists/dirb/common.txt -t 50 -o /home/user/pentest/dirs.txt`,
@@ -240,16 +254,24 @@ function fallbackGeneration(
       alternatives: [`nikto -h ${target}`, `nmap --script vuln ${target}`],
     },
     exploit: {
-      command: intelligence.exploit_candidates[0]?.command || `searchsploit "${target}"`,
+      command:
+        intelligence.exploit_candidates[0]?.command ||
+        `searchsploit "${target}"`,
       justification: intelligence.exploit_candidates[0]
         ? `Exploiting ${intelligence.exploit_candidates[0].cve_id}`
         : "Searching for available exploits",
-      alternatives: intelligence.exploit_candidates.slice(1).map((c) => c.command),
+      alternatives: intelligence.exploit_candidates
+        .slice(1)
+        .map((c) => c.command),
     },
     post: {
       command: `id; uname -a; cat /etc/passwd | head -5; ls -la /home/`,
-      justification: "Post-exploitation enumeration: system info, users, home directories",
-      alternatives: [`find / -perm -4000 -type f 2>/dev/null | head -20`, `cat /etc/crontab`],
+      justification:
+        "Post-exploitation enumeration: system info, users, home directories",
+      alternatives: [
+        `find / -perm -4000 -type f 2>/dev/null | head -20`,
+        `cat /etc/crontab`,
+      ],
     },
     report: {
       command: `cat /home/user/pentest/findings.md`,
@@ -258,11 +280,13 @@ function fallbackGeneration(
     },
   };
 
-  return phaseCommands[task.phase] || {
-    command: `echo "Phase ${task.phase}: ${task.title}"`,
-    justification: `Executing task: ${task.title}`,
-    alternatives: [],
-  };
+  return (
+    phaseCommands[task.phase] || {
+      command: `echo "Phase ${task.phase}: ${task.title}"`,
+      justification: `Executing task: ${task.title}`,
+      alternatives: [],
+    }
+  );
 }
 
 // ─── Main Generation Function ─────────────────────────────────────────────────
@@ -282,15 +306,17 @@ export async function generateCommand(
     headers: {},
     bypassTechniques: [],
     description: "Default strategy",
-  }
+  },
 ): Promise<GeneratedCommand> {
-  console.log(`[Generation] Generating command for: "${task.title}" (${task.phase})`);
+  console.log(
+    `[Generation] Generating command for: "${task.title}" (${task.phase})`,
+  );
 
   // Generate the command
   const { command, justification, alternatives } = await llmGenerateCommand(
     task,
     intelligenceContext,
-    strategy
+    strategy,
   );
 
   // Classify risk
@@ -300,7 +326,9 @@ export async function generateCommand(
   let finalCommand = command;
   if (strategy.encoding !== "none" && task.retry_count > 0) {
     // Only encode if we're retrying with a specific encoding strategy
-    console.log(`[Generation] Applying ${strategy.encoding} encoding (retry ${task.retry_count})`);
+    console.log(
+      `[Generation] Applying ${strategy.encoding} encoding (retry ${task.retry_count})`,
+    );
   }
 
   // Add delay if strategy requires it
@@ -308,7 +336,9 @@ export async function generateCommand(
     finalCommand = `sleep ${Math.floor(strategy.delay / 1000)} && ${finalCommand}`;
   }
 
-  console.log(`[Generation] Command: ${finalCommand} [Risk: ${riskLevel.toUpperCase()}]`);
+  console.log(
+    `[Generation] Command: ${finalCommand} [Risk: ${riskLevel.toUpperCase()}]`,
+  );
 
   return {
     command: finalCommand,

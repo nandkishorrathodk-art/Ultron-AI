@@ -31,6 +31,7 @@ export function isCentrifugoSandbox(
   return (
     sandbox !== null &&
     "sandboxKind" in sandbox &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (sandbox as any).sandboxKind === "centrifugo"
   );
 }
