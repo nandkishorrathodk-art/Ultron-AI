@@ -602,6 +602,19 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ tool_name, method, source }) => {
         const src = source || tool_name;
+
+        // Sanitize input: reject shell metacharacters to prevent command injection
+        const shellUnsafe = /[;&|`$(){}[\]<>!#\n\r\\'"]/;
+        if (shellUnsafe.test(src) || shellUnsafe.test(tool_name)) {
+          return {
+            status: "error",
+            tool_name,
+            method,
+            output:
+              "Rejected: tool name or source contains disallowed characters",
+          };
+        }
+
         const commands: Record<string, string> = {
           apt: `apt-get install -y ${src} 2>&1 | tail -5`,
           pip: `pip3 install ${src} 2>&1 | tail -5`,
@@ -833,8 +846,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // All models failed
-    throw lastError ?? new Error("All models in fallback chain failed");
+    // All models failed — improve error message for common upstream auth errors
+    const rawMsg = lastError?.message ?? "All models in fallback chain failed";
+    const isUpstreamAuth =
+      rawMsg.includes("User not found") ||
+      rawMsg.includes("401") ||
+      rawMsg.includes("Unauthorized");
+    const userMessage = isUpstreamAuth
+      ? "AI provider authentication failed — check your API key in Settings or .env.local"
+      : rawMsg;
+
+    throw new Error(userMessage);
   } catch (err: any) {
     console.error("[Ultron v2] Fatal:", err);
     return Response.json(

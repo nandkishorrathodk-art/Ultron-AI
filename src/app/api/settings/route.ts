@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { runtimeSettings, updateRuntimeSettings } from "@/lib/runtime-settings";
+import { getSession } from "@/lib/session";
 
 export async function GET() {
   return NextResponse.json({
@@ -17,6 +18,15 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // Verify admin role before allowing settings changes
+    const session = await getSession();
+    if (!session || session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Admin access required to modify settings" },
+        { status: 403 },
+      );
+    }
+
     const body = await req.json();
     const { llmBaseUrl, llmModel, llmApiKey, e2bApiKey } = body;
 
