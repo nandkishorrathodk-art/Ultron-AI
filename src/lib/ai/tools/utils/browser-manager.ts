@@ -245,8 +245,10 @@ launch();
   }
 
   async ensureScriptsWritten(): Promise<void> {
-    await this.sandbox.files.write("/tmp/browser-controller.js", BrowserManager.controllerScript);
-    await this.sandbox.files.write("/tmp/browser-server.js", BrowserManager.serverScript);
+    // Use platform-specific paths from getPaths() to avoid hardcoded /tmp/ failures on Windows
+    const { controllerPath, serverPath } = this.getPaths();
+    await this.sandbox.files.write(controllerPath, BrowserManager.controllerScript);
+    await this.sandbox.files.write(serverPath, BrowserManager.serverScript);
   }
 
   async installPlaywright(): Promise<void> {

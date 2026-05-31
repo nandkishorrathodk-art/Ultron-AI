@@ -46,12 +46,15 @@ describe("BrowserManager", () => {
     const winManager = new BrowserManager(mockSandbox);
     await winManager.ensureScriptsWritten();
 
+    // getPaths() returns C:\temp paths on Windows, so ensureScriptsWritten should use those
     expect(mockSandbox.files.write).toHaveBeenCalledWith(
-      "/tmp/browser-controller.js",
+      "C:\\temp\\browser-controller.js",
       expect.any(String)
     );
-    // Note: CentrifugoSandbox automatically translates path in files.write internally,
-    // so we pass "/tmp/..." to files.write, and it handles conversion.
+    expect(mockSandbox.files.write).toHaveBeenCalledWith(
+      "C:\\temp\\browser-server.js",
+      expect.any(String)
+    );
   });
 
   it("should install Playwright on Linux sandbox", async () => {

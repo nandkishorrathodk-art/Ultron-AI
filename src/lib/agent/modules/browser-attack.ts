@@ -55,7 +55,9 @@ async function run() {
   if (customPayloadsStr) {
     try {
       customPayloads = JSON.parse(customPayloadsStr);
-    } catch(e) {}
+    } catch(e) {
+      console.warn("Failed to parse custom payloads JSON:", e.message);
+    }
   }
 
   const wsFilePath = os.platform() === 'win32' ? 'C:\\\\temp\\\\browser-ws.txt' : '/tmp/browser-ws.txt';
@@ -66,7 +68,7 @@ async function run() {
       try {
         browser = await chromium.connect(wsEndpoint);
       } catch (e) {
-        // Fallback to launching a local instance
+        console.warn("Failed to connect to existing browser websocket, launching fresh instance:", e.message);
       }
     }
   }
@@ -125,7 +127,7 @@ async function run() {
         }
       }
     } catch (err) {
-      // Ignore clickjacking connection error, log it
+      console.warn("Clickjacking connection or loading error:", err.message);
     }
 
     // 2. CSRF & FORM DETECTION
@@ -172,7 +174,7 @@ async function run() {
         }
       }
     } catch (err) {
-      // Form detection failed
+      console.warn("Form detection failed on page:", err.message);
     }
 
     // 3. FORM FUZZING (XSS & SQLi)
@@ -225,7 +227,9 @@ async function run() {
                     // Try by type/tag if name is missing or complex
                     return fuzzPage.fill(\`form >> eq(\${form.index}) >> input[type="\${inputMeta.type}"]\`, payload, { timeout: 2000 });
                   });
-                } catch(e) {}
+                } catch(e) {
+                  // Field might be non-interactive
+                }
               }
 
               // Submit form
@@ -252,7 +256,7 @@ async function run() {
               }
             }
           } catch (err) {
-            // Ignore submission timeout
+            console.warn("XSS Form fuzzing attempt failed:", err.message);
           } finally {
             await fuzzPage.close().catch(() => {});
           }
@@ -271,7 +275,9 @@ async function run() {
                 try {
                   const selector = \`form >> eq(\${form.index}) >> [name="\${inputMeta.name}"]\`;
                   await fuzzPage.fill(selector, payload, { timeout: 2000 });
-                } catch(e) {}
+                } catch(e) {
+                  // Field might be non-interactive
+                }
               }
 
               await Promise.all([
@@ -308,7 +314,7 @@ async function run() {
               }
             }
           } catch(err) {
-            // Ignore SQLi submission errors
+            console.warn("SQLi Form fuzzing attempt failed:", err.message);
           } finally {
             await fuzzPage.close().catch(() => {});
           }
@@ -377,7 +383,7 @@ async function run() {
             }
           }
         } catch (err) {
-          // Ignore
+          console.warn("Weak credentials test attempt failed:", err.message);
         } finally {
           await authPage.close().catch(() => {});
         }
@@ -412,7 +418,7 @@ async function run() {
         });
       }
     } catch(err) {
-      // Ignore
+      console.warn("DOM XSS fuzzing attempt failed:", err.message);
     } finally {
       await domPage.close().catch(() => {});
     }
