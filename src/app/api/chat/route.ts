@@ -832,7 +832,31 @@ export async function POST(req: Request) {
         const headers = new Headers(response.headers);
         headers.set("X-Session-Id", activeSession);
 
-        return new Response(response.body, {
+        // Wrap the stream to rewrite upstream auth errors into user-friendly messages
+        const rewrittenBody = response.body
+          ? response.body.pipeThrough(
+              new TransformStream<Uint8Array, Uint8Array>({
+                transform(chunk, controller) {
+                  const text = new TextDecoder().decode(chunk);
+                  const hasAuthKeyword =
+                    text.includes("User not found") ||
+                    text.includes("Unauthorized") ||
+                    text.includes("Authentication failed");
+                  if (hasAuthKeyword && text.includes('"type":"error"')) {
+                    const rewritten = text.replace(
+                      /"errorText":"[^"]*(?:User not found|Unauthorized|Authentication failed)[^"]*"/g,
+                      '"errorText":"AI provider authentication failed \\u2014 check your API key in Settings or .env.local"',
+                    );
+                    controller.enqueue(new TextEncoder().encode(rewritten));
+                  } else {
+                    controller.enqueue(chunk);
+                  }
+                },
+              }),
+            )
+          : null;
+
+        return new Response(rewrittenBody, {
           status: response.status,
           headers,
         });
