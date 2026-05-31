@@ -49,12 +49,20 @@ function isBrowserRequest(request: NextRequest): boolean {
   return accept.includes("text/html");
 }
 
-const JWT_SECRET = new TextEncoder().encode(
+const DEFAULT_SECRET = "ultron-ai-default-secret-change-in-production";
+const jwtSecretRaw =
   process.env.JWT_SECRET ||
-    process.env.SESSION_SECRET ||
-    process.env.AUTH_SECRET ||
-    "ultron-ai-default-secret-change-in-production",
-);
+  process.env.SESSION_SECRET ||
+  process.env.AUTH_SECRET ||
+  DEFAULT_SECRET;
+
+if (jwtSecretRaw === DEFAULT_SECRET) {
+  console.warn(
+    "[Ultron] ⚠️  WARNING: Using default JWT secret in proxy. Set JWT_SECRET in .env for production.",
+  );
+}
+
+const JWT_SECRET = new TextEncoder().encode(jwtSecretRaw);
 
 export default async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
