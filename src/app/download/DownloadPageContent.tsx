@@ -144,10 +144,25 @@ function ConvexAwareLayout() {
   );
 }
 
+function FallbackHeader() {
+  return (
+    <header className="w-full px-6 max-sm:px-4 flex-shrink-0">
+      <div className="py-[10px] flex gap-10 items-center justify-between">
+        <div className="flex items-center gap-2">
+          <UltronAISVG theme="dark" scale={0.15} />
+          <span className="text-foreground text-xl font-semibold max-sm:text-lg">
+            Ultron-AI
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 function FallbackLayout() {
   return (
     <>
-      <Header hideDownload />
+      <FallbackHeader />
       <DownloadContent />
     </>
   );
