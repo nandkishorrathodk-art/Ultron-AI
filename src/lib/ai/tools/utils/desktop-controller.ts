@@ -50,7 +50,11 @@ async function run() {
 
   // Ensure tempDir exists
   if (!fs.existsSync(tempDir)) {
-    try { fs.mkdirSync(tempDir, { recursive: true }); } catch (e) {}
+    try {
+      fs.mkdirSync(tempDir, { recursive: true });
+    } catch (e) {
+      console.error('Failed to create temp directory:', e.message);
+    }
   }
 
   try {
@@ -90,7 +94,13 @@ async function run() {
           }
           fs.writeFileSync(psScriptPath, psContent);
           execSync(\`powershell -ExecutionPolicy Bypass -File "\${psScriptPath}"\`);
-          try { fs.unlinkSync(psScriptPath); } catch (e) {}
+          try {
+            if (fs.existsSync(psScriptPath)) {
+              fs.unlinkSync(psScriptPath);
+            }
+          } catch (e) {
+            console.error('Cleanup failed:', e.message);
+          }
         } else if (platform === 'darwin') {
           if (action.type === 'drag') {
             execSync(\`osascript -e 'tell application "System Events" to drag from {\${action.fromX}, \${action.fromY}} to {\${action.toX}, \${action.toY}}'\`);
@@ -115,7 +125,13 @@ async function run() {
           const psScriptPath = path.join(tempDir, \`type_\${Date.now()}.ps1\`);
           fs.writeFileSync(psScriptPath, \`Add-Type -AssemblyName System.Windows.Forms\\n[System.Windows.Forms.SendKeys]::SendWait("\${escapedText}")\`);
           execSync(\`powershell -ExecutionPolicy Bypass -File "\${psScriptPath}"\`);
-          try { fs.unlinkSync(psScriptPath); } catch (e) {}
+          try {
+            if (fs.existsSync(psScriptPath)) {
+              fs.unlinkSync(psScriptPath);
+            }
+          } catch (e) {
+            console.error('Cleanup failed:', e.message);
+          }
         } else if (platform === 'darwin') {
           execSync(\`osascript -e 'tell application "System Events" to keystroke "\${action.text.replace(/"/g, '\\\\"')}"'\`);
         } else {
@@ -134,7 +150,13 @@ async function run() {
           const psScriptPath = path.join(tempDir, \`key_\${Date.now()}.ps1\`);
           fs.writeFileSync(psScriptPath, \`Add-Type -AssemblyName System.Windows.Forms\\n[System.Windows.Forms.SendKeys]::SendWait("\${keyStroke}")\`);
           execSync(\`powershell -ExecutionPolicy Bypass -File "\${psScriptPath}"\`);
-          try { fs.unlinkSync(psScriptPath); } catch (e) {}
+          try {
+            if (fs.existsSync(psScriptPath)) {
+              fs.unlinkSync(psScriptPath);
+            }
+          } catch (e) {
+            console.error('Cleanup failed:', e.message);
+          }
         } else if (platform === 'darwin') {
           execSync(\`osascript -e 'tell application "System Events" to key code \${action.key}'\`);
         } else {
@@ -178,7 +200,13 @@ async function run() {
       psContent += \`$bitmap.Dispose()\\n\`;
       fs.writeFileSync(psScriptPath, psContent);
       execSync(\`powershell -ExecutionPolicy Bypass -File "\${psScriptPath}"\`);
-      try { fs.unlinkSync(psScriptPath); } catch (e) {}
+      try {
+        if (fs.existsSync(psScriptPath)) {
+          fs.unlinkSync(psScriptPath);
+        }
+      } catch (e) {
+        console.error('Cleanup failed:', e.message);
+      }
     } else if (platform === 'darwin') {
       execSync(\`screencapture -x "\${screenshotPath}"\`);
     } else {
@@ -188,7 +216,13 @@ async function run() {
     let screenshotBase64 = null;
     if (fs.existsSync(screenshotPath)) {
       screenshotBase64 = fs.readFileSync(screenshotPath).toString('base64');
-      try { fs.unlinkSync(screenshotPath); } catch (e) {}
+      try {
+        if (fs.existsSync(screenshotPath)) {
+          fs.unlinkSync(screenshotPath);
+        }
+      } catch (e) {
+        console.error('Cleanup failed:', e.message);
+      }
     }
 
     console.log(JSON.stringify({
@@ -198,7 +232,13 @@ async function run() {
 
   } catch (err) {
     if (fs.existsSync(screenshotPath)) {
-      try { fs.unlinkSync(screenshotPath); } catch (e) {}
+      try {
+        if (fs.existsSync(screenshotPath)) {
+          fs.unlinkSync(screenshotPath);
+        }
+      } catch (e) {
+        console.error('Cleanup failed:', e.message);
+      }
     }
     console.log(JSON.stringify({
       success: false,
@@ -229,7 +269,9 @@ run();
   }
 
   async ensureScriptWritten(): Promise<void> {
-    await this.sandbox.files.write("/tmp/desktop-agent.js", DesktopController.agentScript);
+    // Use platform-specific paths from getPaths() to avoid hardcoded /tmp/ failures on Windows
+    const { agentPath } = this.getPaths();
+    await this.sandbox.files.write(agentPath, DesktopController.agentScript);
   }
 
   async executeAction(action: ComputerUseActionInput): Promise<ComputerUseActionResult> {

@@ -297,7 +297,7 @@ export class PentestCoordinator {
             if (match) {
               const url = match[2];
               const { BrowserAttackAgent } = await import("./modules/browser-attack");
-              const agent = new BrowserAttackAgent(sandbox);
+              const agent = new BrowserAttackAgent(sandbox as any);
               const result = await agent.runScanner({ targetUrl: url });
               execResult = {
                 exitCode: result.success ? 0 : 1,

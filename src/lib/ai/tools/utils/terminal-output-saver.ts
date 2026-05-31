@@ -21,14 +21,23 @@ export async function saveFullOutputToFile(
       .replace(/\./, "_");
     // e.g. 2026-02-17_16-54-34_442Z
 
+    const isWin = typeof (sandbox as any).isWindows === "function" && (sandbox as any).isWindows();
     const dir = isE2BSandbox(sandbox)
       ? "/home/user/terminal_full_output"
-      : "/tmp/terminal_full_output";
+      : isWin
+        ? "C:\\temp\\terminal_full_output"
+        : "/tmp/terminal_full_output";
     const filePath = `${dir}/${timestamp}.txt`;
 
-    await sandbox.commands.run(`mkdir -p ${dir}`, {
-      timeoutMs: 5000,
-    });
+    if (isWin) {
+      await sandbox.commands.run(`if not exist "${dir}" mkdir "${dir}"`, {
+        timeoutMs: 5000,
+      });
+    } else {
+      await sandbox.commands.run(`mkdir -p "${dir}"`, {
+        timeoutMs: 5000,
+      });
+    }
     await sandbox.files.write(filePath, fullOutput);
 
     return filePath;

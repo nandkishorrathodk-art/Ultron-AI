@@ -42,17 +42,18 @@ export const ComputerUseToolHandler = memo(function ComputerUseToolHandler({
   const [isOpen, setIsOpen] = useState(false);
 
   const getActionLabel = (isCompleted = false) => {
-    if (input?.brief) return input.brief;
-    const action = input?.action || "desktop action";
+    if (!input) return isCompleted ? "Controlled desktop" : "Controlling desktop";
+    if (input.brief) return input.brief;
+    const action = input.action || "desktop action";
     const verb = isCompleted 
       ? action === "click" ? "Clicked" : action === "double_click" ? "Double-clicked" : action === "right_click" ? "Right-clicked" : action === "move" ? "Moved mouse" : action === "drag" ? "Dragged mouse" : action === "type" ? "Typed" : action === "press" ? "Pressed key" : action === "launch_app" ? "Launched app" : "Controlled desktop"
       : action === "click" ? "Clicking" : action === "double_click" ? "Double-clicking" : action === "right_click" ? "Right-clicking" : action === "move" ? "Moving mouse" : action === "drag" ? "Dragging mouse" : action === "type" ? "Typing" : action === "press" ? "Pressing key" : action === "launch_app" ? "Launching app" : "Controlling desktop";
     
     if (action === "click" || action === "double_click" || action === "right_click" || action === "move") {
-      return `${verb} at (${input.x}, ${input.y})`;
+      return `${verb} at (${input.x ?? 0}, ${input.y ?? 0})`;
     }
     if (action === "drag") {
-      return `${verb} from (${input.fromX}, ${input.fromY}) to (${input.toX}, ${input.toY})`;
+      return `${verb} from (${input.fromX ?? 0}, ${input.fromY ?? 0}) to (${input.toX ?? 0}, ${input.toY ?? 0})`;
     }
     if (action === "type" && input.text) {
       return `${verb} "${input.text}"`;

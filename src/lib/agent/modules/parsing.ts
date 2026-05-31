@@ -36,6 +36,9 @@ function patternParse(
   stdout: string,
   stderr: string,
 ): Finding[] {
+  const combined = (stdout + "\n" + stderr).trim();
+  const findings: Finding[] = [];
+
   // ── browser_attack parsing ─────────────────────────────────
   if (command.includes("browser_attack")) {
     try {
