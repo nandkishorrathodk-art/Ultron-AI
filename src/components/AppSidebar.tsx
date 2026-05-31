@@ -76,7 +76,12 @@ export function AppSidebar() {
           if (stored) {
             try {
               setRecentScans(JSON.parse(stored).slice(0, 5));
-            } catch {}
+            } catch (err) {
+              console.warn(
+                "Failed to parse stored recent scans from localstorage:",
+                err,
+              );
+            }
           }
         });
     };
