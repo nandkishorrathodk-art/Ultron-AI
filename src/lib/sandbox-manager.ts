@@ -5,10 +5,12 @@
  * execute-approved route can reuse the SAME persistent sandbox.
  *
  * Key design: one VM per session, files/tools survive between commands.
+ * Supports both E2B Cloud and Direct Local sandbox modes.
  * ═══════════════════════════════════════════════════════════════
  */
 
 import { Sandbox } from "e2b";
+import { localSandboxManager } from "@/lib/local-sandbox-manager";
 
 // ─── Sandbox Session Interface ────────────────────────────────────────────────
 interface SandboxSession {
@@ -121,4 +123,52 @@ export function getActiveSandboxes() {
     });
   }
   return active;
+}
+
+// ─── Local Sandbox Execution ─────────────────────────────────────────────────
+// Provides an E2B-like interface for local sandbox command execution.
+
+export interface LocalExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+/**
+ * Execute a command on a connected local sandbox.
+ * Finds the first ready connection and dispatches the command.
+ */
+export async function executeOnLocalSandbox(
+  command: string,
+  options: { connectionId?: string; timeoutMs?: number } = {},
+): Promise<LocalExecResult> {
+  const { connectionId, timeoutMs = 30_000 } = options;
+
+  let conn;
+  if (connectionId && connectionId !== "desktop") {
+    conn = localSandboxManager.getConnection(connectionId);
+  } else {
+    conn = localSandboxManager.findReadyConnection();
+  }
+
+  if (!conn) {
+    throw new Error(
+      "No local sandbox connected. Run: npx @ultron-ai/local --direct http://localhost:3000 --token TOKEN",
+    );
+  }
+
+  return localSandboxManager.executeCommand(conn.connectionId, command, {
+    timeout: timeoutMs,
+  });
+}
+
+/**
+ * Check if any local sandbox connection is available.
+ */
+export function hasLocalSandbox(connectionId?: string): boolean {
+  if (connectionId && connectionId !== "desktop") {
+    const conn = localSandboxManager.getConnection(connectionId);
+    return !!conn?.streamReady;
+  }
+  return !!localSandboxManager.findReadyConnection();
 }

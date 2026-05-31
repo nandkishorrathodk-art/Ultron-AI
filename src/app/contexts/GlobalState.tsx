@@ -245,8 +245,64 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
   const { sandboxPreference, setSandboxPreference, desktopBridgeActive } =
     useSandboxPreference(!!user);
 
-  // Check for available local sandbox connections
-  const localConnections = useQuery(api.localSandbox.listConnections);
+  // Check for available local sandbox connections (Convex + REST fallback)
+  const convexLocalConnections = useQuery(api.localSandbox.listConnections);
+
+  // REST API fallback for direct local sandbox connections
+  const [directLocalConnections, setDirectLocalConnections] = useState<
+    Array<{
+      connectionId: string;
+      name: string;
+      isDesktop: boolean;
+      osInfo?: { hostname?: string };
+      streamReady?: boolean;
+    }>
+  >([]);
+
+  useEffect(() => {
+    const fetchDirect = () => {
+      try {
+        fetch("/api/sandbox/local/connect")
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.connections) {
+              setDirectLocalConnections(
+                data.connections.filter(
+                  (c: { streamReady?: boolean }) => c.streamReady,
+                ),
+              );
+            }
+          })
+          .catch(() => {});
+      } catch {
+        // fetch may throw synchronously in test/SSR environments
+      }
+    };
+    fetchDirect();
+    const interval = setInterval(fetchDirect, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const localConnections = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        connectionId: string;
+        name: string;
+        isDesktop: boolean;
+        osInfo?: { hostname?: string };
+      }
+    >();
+    if (convexLocalConnections) {
+      for (const c of convexLocalConnections) map.set(c.connectionId, c);
+    }
+    for (const c of directLocalConnections) {
+      if (!map.has(c.connectionId)) map.set(c.connectionId, c);
+    }
+    const merged = Array.from(map.values());
+    return merged.length > 0 ? merged : convexLocalConnections;
+  }, [convexLocalConnections, directLocalConnections]);
+
   const hasLocalSandbox = useMemo(
     () => desktopBridgeActive || (localConnections?.length ?? 0) > 0,
     [desktopBridgeActive, localConnections],
@@ -692,22 +748,19 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
   }, []);
 
   // Custom setter for legacy migration confirm dialog that also updates URL
-  const setMigrateFromLegacyDialogOpenWithUrl = useCallback(
-    (open: boolean) => {
-      setMigrateFromLegacyDialogOpen(open);
+  const setMigrateFromLegacyDialogOpenWithUrl = useCallback((open: boolean) => {
+    setMigrateFromLegacyDialogOpen(open);
 
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
-        if (open) {
-          url.searchParams.set("confirm-migrate-legacy", "true");
-        } else {
-          url.searchParams.delete("confirm-migrate-legacy");
-        }
-        window.history.replaceState({}, "", url.toString());
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (open) {
+        url.searchParams.set("confirm-migrate-legacy", "true");
+      } else {
+        url.searchParams.delete("confirm-migrate-legacy");
       }
-    },
-    [],
-  );
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   const value: GlobalStateType = {
     input,
@@ -757,8 +810,7 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
     setTeamWelcomeDialogOpen: setTeamWelcomeDialogOpenWithUrl,
 
     migrateFromLegacyDialogOpen,
-    setMigrateFromLegacyDialogOpen:
-      setMigrateFromLegacyDialogOpenWithUrl,
+    setMigrateFromLegacyDialogOpen: setMigrateFromLegacyDialogOpenWithUrl,
 
     setChatReset,
 

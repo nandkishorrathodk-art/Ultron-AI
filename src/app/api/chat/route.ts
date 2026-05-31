@@ -19,6 +19,7 @@ import {
   getOrCreateSandbox,
   killSandbox,
   addSandboxLog,
+  executeOnLocalSandbox,
 } from "@/lib/sandbox-manager";
 import { PentestCoordinator } from "../../../lib/agent/coordinator";
 import {
@@ -240,14 +241,23 @@ function sanitizeMessages(messages: any[]): any[] {
 }
 
 // ─── Tool Definitions ─────────────────────────────────────────────────────────
-function buildTools(sessionId: string) {
+function buildTools(
+  sessionId: string,
+  sandboxMode: string = "e2b",
+  sandboxConnectionId?: string,
+) {
+  const isLocalSandbox =
+    sandboxMode === "desktop" || (sandboxMode !== "e2b" && sandboxMode !== "");
+
   return {
     // ── Tool 1: execute_bash (upgraded — persistent sandbox) ──────────────────
     execute_bash: tool({
-      description:
-        "Execute bash commands in a PERSISTENT Linux sandbox. " +
-        "Files and installed tools survive between calls in the same session. " +
-        "All results auto-saved to /home/user/pentest/. Use for ALL hacking tasks.",
+      description: isLocalSandbox
+        ? "Execute bash commands on the user's LOCAL machine. " +
+          "Commands run directly on the host OS. Use for ALL tasks."
+        : "Execute bash commands in a PERSISTENT Linux sandbox. " +
+          "Files and installed tools survive between calls in the same session. " +
+          "All results auto-saved to /home/user/pentest/. Use for ALL hacking tasks.",
       parameters: z.object({
         command: z
           .string()
@@ -279,45 +289,64 @@ function buildTools(sessionId: string) {
 
         const startTime = Date.now();
         try {
-          // v2: reuse persistent sandbox instead of creating new one
-          const sandbox = await getOrCreateSandbox(sessionId);
+          console.log(
+            `[Ultron] ▶ [${risk.toUpperCase()}]${isLocalSandbox ? " [LOCAL]" : ""} ${command}`,
+          );
 
-          console.log(`[Ultron] ▶ [${risk.toUpperCase()}] ${command}`);
+          let stdout: string;
+          let stderr: string;
+          let exitCode: number;
 
-          const exec = await sandbox.commands.run(command, {
-            timeoutMs: TOOL_TIMEOUTS.execute_bash,
-          });
+          if (isLocalSandbox) {
+            // Local sandbox: dispatch to connected CLI
+            const result = await executeOnLocalSandbox(command, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.execute_bash,
+            });
+            stdout = result.stdout;
+            stderr = result.stderr;
+            exitCode = result.exitCode;
+          } else {
+            // E2B Cloud sandbox
+            const sandbox = await getOrCreateSandbox(sessionId);
+            const exec = await sandbox.commands.run(command, {
+              timeoutMs: TOOL_TIMEOUTS.execute_bash,
+            });
+            stdout = exec.stdout;
+            stderr = exec.stderr;
+            exitCode = exec.exitCode;
+          }
 
           const durationMs = Date.now() - startTime;
           addSandboxLog(
             sessionId,
             command,
-            exec.stdout + (exec.stderr ? "\n" + exec.stderr : ""),
+            stdout + (stderr ? "\n" + stderr : ""),
           );
 
           addShellEntry(
             sessionId,
             command,
-            exec.stdout,
-            exec.stderr,
-            exec.exitCode,
+            stdout,
+            stderr,
+            exitCode,
             durationMs,
           );
           addWorklogEntry(
             sessionId,
             "command",
             `Executed shell command: ${command.slice(0, 60)}${command.length > 60 ? "..." : ""}`,
-            exec.exitCode === 0 ? "success" : "error",
-            `Exit code: ${exec.exitCode}\n\nSTDOUT:\n${exec.stdout.slice(0, 1000)}\n\nSTDERR:\n${exec.stderr.slice(0, 1000)}`,
+            exitCode === 0 ? "success" : "error",
+            `Exit code: ${exitCode}\n\nSTDOUT:\n${stdout.slice(0, 1000)}\n\nSTDERR:\n${stderr.slice(0, 1000)}`,
           );
 
           return {
             status: "success",
             risk_level: risk,
             command,
-            stdout: exec.stdout || "(no output)",
-            stderr: exec.stderr || "",
-            exit_code: exec.exitCode,
+            stdout: stdout || "(no output)",
+            stderr: stderr || "",
+            exit_code: exitCode,
           };
         } catch (err: any) {
           const durationMs = Date.now() - startTime;
@@ -489,11 +518,19 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ path, max_lines = 200 }) => {
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
-          const exec = await sandbox.commands.run(
-            `[ -f "${path}" ] && head -n ${max_lines} "${path}" || echo "FILE NOT FOUND: ${path}"`,
-            { timeoutMs: TOOL_TIMEOUTS.read_file },
-          );
+          let exec;
+          const readCmd = `[ -f "${path}" ] && head -n ${max_lines} "${path}" || echo "FILE NOT FOUND: ${path}"`;
+          if (isLocalSandbox) {
+            exec = await executeOnLocalSandbox(readCmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.read_file,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            exec = await sandbox.commands.run(readCmd, {
+              timeoutMs: TOOL_TIMEOUTS.read_file,
+            });
+          }
 
           const content = exec.stdout || "(empty file)";
 
@@ -548,13 +585,20 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ path, content }) => {
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
           // Use base64 encoding to safely handle special characters in content
           const encoded = Buffer.from(content).toString("base64");
-          await sandbox.commands.run(
-            `mkdir -p "$(dirname "${path}")" && echo "${encoded}" | base64 -d > "${path}"`,
-            { timeoutMs: TOOL_TIMEOUTS.write_file },
-          );
+          const writeCmd = `mkdir -p "$(dirname "${path}")" && echo "${encoded}" | base64 -d > "${path}"`;
+          if (isLocalSandbox) {
+            await executeOnLocalSandbox(writeCmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.write_file,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            await sandbox.commands.run(writeCmd, {
+              timeoutMs: TOOL_TIMEOUTS.write_file,
+            });
+          }
 
           trackFileChange(sessionId, path, "write", content, content.length);
           trackIDEFile(sessionId, path, content);
@@ -625,11 +669,19 @@ function buildTools(sessionId: string) {
         const cmd = commands[method];
 
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
           console.log(`[Ultron] 📦 Installing ${tool_name} via ${method}`);
-          const exec = await sandbox.commands.run(cmd, {
-            timeoutMs: TOOL_TIMEOUTS.install_tool,
-          });
+          let exec;
+          if (isLocalSandbox) {
+            exec = await executeOnLocalSandbox(cmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.install_tool,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            exec = await sandbox.commands.run(cmd, {
+              timeoutMs: TOOL_TIMEOUTS.install_tool,
+            });
+          }
 
           const output =
             exec.stdout?.slice(-500) || exec.stderr?.slice(-500) || "Installed";
@@ -667,7 +719,13 @@ function buildTools(sessionId: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, sessionId, targetScope, mode } = body;
+    const { messages, sessionId, targetScope, mode, sandboxPreference } = body;
+    // sandboxPreference from frontend: "e2b" | "desktop" | "<connectionId>"
+    const sandboxMode = sandboxPreference || "e2b";
+    const sandboxConnectionId =
+      sandboxMode !== "e2b" && sandboxMode !== "desktop"
+        ? sandboxMode
+        : undefined;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json(
@@ -817,7 +875,7 @@ export async function POST(req: Request) {
           system: SYSTEM_PROMPT,
           messages: cleanMessages,
           stopWhen: stepCountIs(8),
-          tools: buildTools(activeSession),
+          tools: buildTools(activeSession, sandboxMode, sandboxConnectionId),
           // Return session ID in headers so frontend can persist it
           onFinish: () => {
             console.log(

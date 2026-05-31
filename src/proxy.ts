@@ -34,6 +34,7 @@ const PUBLIC_PATHS = new Set([
 const PUBLIC_PREFIXES = [
   "/share/",
   "/api/auth/",
+  "/api/sandbox/local/",
   "/_next/",
   "/favicon",
   "/public/",
