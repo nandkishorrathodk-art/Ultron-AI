@@ -1161,13 +1161,22 @@ ${chalk.bold("Ultron-AI Local Sandbox Client")}
 ${chalk.yellow("Usage:")}
   npx @ultron-ai/local --token TOKEN [options]
 
+${chalk.yellow("Modes:")}
+  ${chalk.bold("Direct mode")} (no Convex/Centrifugo needed):
+    npx @ultron-ai/local --direct http://localhost:3000 --token TOKEN
+
+  ${chalk.bold("Convex mode")} (production — requires Convex + Centrifugo):
+    npx @ultron-ai/local --token hsb_abc123
+
 ${chalk.yellow("Options:")}
-  --token TOKEN       Authentication token from Settings (required)
+  --token TOKEN       Authentication token (required)
+  --direct URL        Connect directly to Next.js app (no Convex needed)
   --name NAME         Optional connection name fallback (default: hostname)
-  --convex-url URL    Override Convex backend URL (for development)
+  --convex-url URL    Override Convex backend URL (Convex mode only)
   --help, -h          Show this help message
 
 ${chalk.yellow("Examples:")}
+  npx @ultron-ai/local --direct http://localhost:3000 --token lsb_abc123
   npx @ultron-ai/local --token hsb_abc123
   npx @ultron-ai/local --token hsb_abc123 --name "Work PC"
 
@@ -1182,34 +1191,72 @@ ${chalk.cyan("Auto-termination:")}
   process.exit(0);
 }
 
-const config: Config = {
-  convexUrl: getArg("--convex-url") || PRODUCTION_CONVEX_URL,
-  token: getArg("--token") || "",
-  name: getArg("--name") || os.hostname(),
-};
+// Check for direct mode
+const directUrl = getArg("--direct");
+const token = getArg("--token") || "";
+const name = getArg("--name") || os.hostname();
 
-if (!config.token) {
+if (!token) {
   console.error(chalk.red("❌ No authentication token provided"));
-  console.error(chalk.yellow("Usage: npx @ultron-ai/local --token YOUR_TOKEN"));
-  console.error(chalk.yellow("Get your token from Ultron-AI Settings > Agents"));
+  console.error(
+    chalk.yellow(
+      "Usage: npx @ultron-ai/local --direct http://localhost:3000 --token TOKEN",
+    ),
+  );
+  console.error(chalk.yellow("Get your token from Settings > Agent Sandbox"));
   process.exit(1);
 }
 
-const client = new LocalSandboxClient(config);
+if (directUrl) {
+  // Direct mode — connect straight to the Next.js app
+  import("./direct.js").then(({ DirectSandboxClient }) => {
+    const client = new DirectSandboxClient({
+      serverUrl: directUrl,
+      token,
+      name,
+    });
 
-process.on("SIGINT", async () => {
-  console.log(chalk.yellow("\n🛑 Shutting down..."));
-  await client.cleanup();
-  process.exit(0);
-});
+    process.on("SIGINT", async () => {
+      console.log(chalk.yellow("\n🛑 Shutting down..."));
+      await client.cleanup();
+      process.exit(0);
+    });
 
-process.on("SIGTERM", async () => {
-  await client.cleanup();
-  process.exit(0);
-});
+    process.on("SIGTERM", async () => {
+      await client.cleanup();
+      process.exit(0);
+    });
 
-client.start().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(chalk.red("Fatal error:"), message);
-  process.exit(1);
-});
+    client.start().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red("Fatal error:"), message);
+      process.exit(1);
+    });
+  });
+} else {
+  // Convex mode (production)
+  const config: Config = {
+    convexUrl: getArg("--convex-url") || PRODUCTION_CONVEX_URL,
+    token,
+    name,
+  };
+
+  const client = new LocalSandboxClient(config);
+
+  process.on("SIGINT", async () => {
+    console.log(chalk.yellow("\n🛑 Shutting down..."));
+    await client.cleanup();
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", async () => {
+    await client.cleanup();
+    process.exit(0);
+  });
+
+  client.start().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(chalk.red("Fatal error:"), message);
+    process.exit(1);
+  });
+}

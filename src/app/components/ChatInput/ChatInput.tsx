@@ -109,9 +109,20 @@ export const ChatInput = ({
     const wasConnected = prevHasLocalSandboxRef.current;
     prevHasLocalSandboxRef.current = hasLocalSandbox;
 
+    if (
+      hasLocalSandbox &&
+      !wasConnected &&
+      subscription === "free" &&
+      !isAgentMode(chatMode)
+    ) {
+      setChatMode("agent");
+      if (defaultLocalSandboxPreference) {
+        setSandboxPreference(defaultLocalSandboxPreference);
+      }
+      return;
+    }
+
     if (!isFreeAgent) return;
-    // Only show toast on actual disconnect (true → false), not on
-    // initial mount or logout where hasLocalSandbox starts as false.
     if (!hasLocalSandbox) {
       setChatMode("ask");
       if (wasConnected) {
@@ -122,7 +133,7 @@ export const ChatInput = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFreeAgent, hasLocalSandbox]);
+  }, [isFreeAgent, hasLocalSandbox, subscription, chatMode]);
 
   useEffect(() => {
     if (!isFreeAgent) return;

@@ -25,8 +25,9 @@ import { useState, useCallback, useEffect } from "react";
 import { DefaultChatTransport } from "ai";
 import type { FlowMode } from "@/lib/agent/flow";
 
-// Module-level session ID — persists across re-renders without triggering ref-in-render lint
+// Module-level state — persists across re-renders without triggering ref-in-render lint
 let currentSessionId: string | null = null;
+let currentSandboxMode: "e2b" | "desktop" = "e2b";
 
 // ─── Auto Flow Mode Detection ─────────────────────────────────────────────────
 const FLOW_MODE_PATTERNS: { mode: FlowMode; patterns: RegExp[] }[] = [
@@ -258,6 +259,31 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [detectedMode, setDetectedMode] = useState<FlowMode>("standard");
   const [showMonitor, setShowMonitor] = useState(false);
+  const [sandboxMode, setSandboxMode] = useState<"e2b" | "desktop">("e2b");
+  const [hasLocalConnection, setHasLocalConnection] = useState(false);
+
+  useEffect(() => {
+    currentSandboxMode = sandboxMode;
+  }, [sandboxMode]);
+
+  // Poll for local sandbox connections
+  useEffect(() => {
+    const poll = () => {
+      fetch("/api/sandbox/local/connect")
+        .then((r) => r.json())
+        .then((data) => {
+          const ready = data.connections?.some(
+            (c: { streamReady?: boolean }) => c.streamReady,
+          );
+          setHasLocalConnection(!!ready);
+          if (ready && sandboxMode === "e2b") setSandboxMode("desktop");
+        })
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 10_000);
+    return () => clearInterval(interval);
+  }, [sandboxMode]);
 
   // Load session from URL parameters if present
   useEffect(() => {
@@ -274,7 +300,10 @@ export default function Home() {
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
-        body: () => (currentSessionId ? { sessionId: currentSessionId } : {}),
+        body: () => ({
+          ...(currentSessionId ? { sessionId: currentSessionId } : {}),
+          sandboxPreference: currentSandboxMode,
+        }),
         fetch: async (url, init) => {
           const response = await globalThis.fetch(url, init);
           const sid = response.headers.get("X-Session-Id");
@@ -612,6 +641,30 @@ export default function Home() {
 
           {/* Input Area */}
           <div className="p-4 bg-background border-t shrink-0">
+            {hasLocalConnection && (
+              <div className="max-w-4xl mx-auto mb-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSandboxMode(sandboxMode === "e2b" ? "desktop" : "e2b")
+                  }
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    sandboxMode === "desktop"
+                      ? "bg-green-500/20 border-green-500/50 text-green-400"
+                      : "bg-muted/50 border-muted-foreground/20 text-muted-foreground"
+                  }`}
+                >
+                  {sandboxMode === "desktop"
+                    ? "Local Sandbox"
+                    : "Cloud Sandbox"}
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  {sandboxMode === "desktop"
+                    ? "Commands run on your machine"
+                    : "Commands run in cloud VM"}
+                </span>
+              </div>
+            )}
             <form
               onSubmit={onSubmit}
               className="max-w-4xl mx-auto relative flex items-center"
