@@ -293,22 +293,28 @@ export class PentestCoordinator {
 
         if (finalCommand.startsWith("browser_attack")) {
           try {
-            const match = finalCommand.match(/^browser_attack\s+--type\s+(\S+)\s+--url\s+(\S+)/);
+            const match = finalCommand.match(
+              /^browser_attack\s+--type\s+(\S+)\s+--url\s+(\S+)/,
+            );
             if (match) {
               const url = match[2];
-              const { BrowserAttackAgent } = await import("./modules/browser-attack");
+              const { BrowserAttackAgent } =
+                await import("./modules/browser-attack");
               const agent = new BrowserAttackAgent(sandbox as any);
               const result = await agent.runScanner({ targetUrl: url });
               execResult = {
                 exitCode: result.success ? 0 : 1,
-                stdout: JSON.stringify({ success: result.success, findings: result.findings }),
-                stderr: result.error || ""
+                stdout: JSON.stringify({
+                  success: result.success,
+                  findings: result.findings,
+                }),
+                stderr: result.error || "",
               };
             } else {
               execResult = {
                 exitCode: 1,
                 stdout: "",
-                stderr: "Invalid browser_attack command format"
+                stderr: "Invalid browser_attack command format",
               };
             }
           } catch (err: any) {
@@ -412,7 +418,12 @@ export class PentestCoordinator {
                 }
               }
             }
-          } catch {}
+          } catch (syncErr) {
+            console.warn(
+              "Failed to sync files inside E2B sandbox to local visualizer:",
+              syncErr,
+            );
+          }
 
           // I. Parsing structured findings
           const parseResult = await parseOutput(

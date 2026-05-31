@@ -40,10 +40,19 @@ export const useLegacyMigration = (): UseLegacyMigration => {
           url.searchParams.set("team-welcome", "true");
         }
         window.location.replace(url.toString());
-      } catch {
+      } catch (urlErr) {
+        console.warn(
+          "Failed to set window location URL query search parameters:",
+          urlErr,
+        );
         try {
           await fetch("/api/entitlements", { credentials: "include" });
-        } catch {}
+        } catch (fetchErr) {
+          console.warn(
+            "Failed to fetch entitlements during legacy migration fallback:",
+            fetchErr,
+          );
+        }
         window.location.reload();
       }
     } catch (error) {

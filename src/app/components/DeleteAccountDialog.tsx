@@ -81,11 +81,21 @@ export const DeleteAccountDialog = ({
       // 3) Clear HttpOnly auth cookies on the server, then redirect home
       try {
         await fetch("/api/clear-auth-cookies", { method: "POST" });
-      } catch {}
+      } catch (cookieErr) {
+        console.warn(
+          "Failed to clear auth cookies server-side during deletion:",
+          cookieErr,
+        );
+      }
       try {
         sessionStorage.clear();
         localStorage.clear();
-      } catch {}
+      } catch (storageErr) {
+        console.warn(
+          "Failed to clear local/session storage during deletion:",
+          storageErr,
+        );
+      }
       window.location.replace("/");
     } catch (error) {
       console.error("Failed to delete user data:", error);

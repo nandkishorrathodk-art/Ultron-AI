@@ -198,7 +198,12 @@ export const POST = async (req: NextRequest) => {
             productMetadata.plan === "pro"
           )
             planType = "pro";
-        } catch {}
+        } catch (prodErr) {
+          console.warn(
+            "Failed to retrieve product details for subscription:",
+            prodErr,
+          );
+        }
       }
 
       if (currentPrice?.recurring?.interval === "year") interval = "yearly";
@@ -219,7 +224,12 @@ export const POST = async (req: NextRequest) => {
             paymentMethodInfo = `${brand} *${last4}`;
           }
         }
-      } catch {}
+      } catch (pmErr) {
+        console.warn(
+          "Failed to retrieve payment method for subscription:",
+          pmErr,
+        );
+      }
 
       try {
         // Use Stripe's Create Preview Invoice API via the SDK to get EXACT prorated amounts
