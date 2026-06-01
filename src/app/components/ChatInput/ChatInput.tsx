@@ -98,12 +98,9 @@ export const ChatInput = ({
   const draftId = isNewChat ? "new" : chatId || NULL_THREAD_DRAFT_ID;
 
   // Free agent mode constraints:
-  // 1. Requires local sandbox — fall back to ask mode if disconnected
-  // 2. Force local sandbox preference (not e2b)
-  // 3. Force auto model selection
+  // 1. Requires local sandbox preference (not e2b)
   const isFreeAgent =
     !isCheckingProPlan && subscription === "free" && isAgentMode(chatMode);
-
   const prevHasLocalSandboxRef = useRef(hasLocalSandbox);
   useEffect(() => {
     const wasConnected = prevHasLocalSandboxRef.current;
@@ -143,18 +140,7 @@ export const ChatInput = ({
     ) {
       setSandboxPreference(defaultLocalSandboxPreference);
     }
-    if (selectedModel !== "auto") {
-      setSelectedModel("auto");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFreeAgent]);
-
-  // Fallback to 'ask' mode when temporary chats are enabled (agent modes not allowed)
-  useEffect(() => {
-    if (temporaryChatsEnabled && isAgentMode(chatMode)) {
-      setChatMode("ask");
-    }
-  }, [temporaryChatsEnabled, chatMode, setChatMode]);
+  }, [isFreeAgent, sandboxPreference, defaultLocalSandboxPreference, setSandboxPreference]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

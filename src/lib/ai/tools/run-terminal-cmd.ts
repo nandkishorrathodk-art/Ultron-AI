@@ -193,10 +193,17 @@ In using these tools, adhere to the following guidelines:
         timeout ?? DEFAULT_STREAM_TIMEOUT_SECONDS,
         MAX_TIMEOUT_SECONDS,
       );
+
+      // Get fresh sandbox
+      const { sandbox } = await sandboxManager.getSandbox();
+      const isCentrifugo = isCentrifugoSandbox(sandbox);
+      const isE2B = isE2BSandbox(sandbox);
+
       // Check guardrails before executing the command
       const guardrailResult = checkCommandGuardrails(
         command,
         effectiveGuardrails,
+        isE2B,
       );
       if (!guardrailResult.allowed) {
         return {
@@ -211,9 +218,6 @@ In using these tools, adhere to the following guidelines:
       // ─── Interactive PTY exec branch ─────────────────────────────────
       if (interactive) {
         try {
-          const { sandbox } = await sandboxManager.getSandbox();
-          const isCentrifugo = isCentrifugoSandbox(sandbox);
-          const isE2B = isE2BSandbox(sandbox);
 
           if (!isE2B && !isCentrifugo) {
             return {
@@ -266,6 +270,7 @@ In using these tools, adhere to the following guidelines:
           const session = await ptySessionManager.create(chatId, {
             cols,
             rows,
+            isE2B,
             createHandle: async () => {
               if (isCentrifugo) {
                 const { createCentrifugoPtyHandle } =

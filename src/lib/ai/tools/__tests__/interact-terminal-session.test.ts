@@ -62,6 +62,11 @@ jest.mock("../utils/centrifugo-pty-adapter", () => ({
   createCentrifugoPtyHandle: jest.fn(),
 }));
 
+import { createCentrifugoPtyHandle } from "../utils/centrifugo-pty-adapter";
+const mockCreateCentrifugoPtyHandle = createCentrifugoPtyHandle as jest.MockedFunction<
+  typeof createCentrifugoPtyHandle
+>;
+
 // ── Fake PTY handle factory ──────────────────────────────────────────
 
 interface FakeHandle extends PtyHandle {
@@ -205,8 +210,13 @@ async function runExecTool(
 async function createSession(
   context: import("@/types").ToolContext,
   handle: FakeHandle,
+  isCentrifugo = false,
 ): Promise<string> {
-  mockCreateE2BPtyHandle.mockImplementation(async () => handle);
+  if (isCentrifugo) {
+    mockCreateCentrifugoPtyHandle.mockResolvedValue(handle);
+  } else {
+    mockCreateE2BPtyHandle.mockImplementation(async () => handle);
+  }
   const execTool = createRunTerminalCmd(context);
   const execP = runExecTool(execTool, {
     action: "exec",
@@ -224,6 +234,7 @@ async function createSession(
 describe("interact_terminal_session — PTY action dispatch", () => {
   beforeEach(() => {
     mockCreateE2BPtyHandle.mockReset();
+    mockCreateCentrifugoPtyHandle.mockReset();
   });
 
   test("send on unknown session returns structured error", async () => {
@@ -260,11 +271,14 @@ describe("interact_terminal_session — PTY action dispatch", () => {
   });
 
   test("send blocks guardrail-matched destructive input", async () => {
-    const e2b = makeFakeE2BSandbox();
+    const localSandbox = {
+      sandboxKind: "centrifugo",
+      commands: { run: jest.fn() },
+    };
     const handle = makeFakeHandle();
 
-    const { context } = makeContext({ sandbox: e2b });
-    const sessionId = await createSession(context, handle);
+    const { context } = makeContext({ sandbox: localSandbox });
+    const sessionId = await createSession(context, handle, true);
     const before = handle.sendInputCalls.length;
 
     const tool = createInteractTerminalSession(context);
@@ -279,11 +293,14 @@ describe("interact_terminal_session — PTY action dispatch", () => {
   });
 
   test("send blocks destructive input assembled across split sends", async () => {
-    const e2b = makeFakeE2BSandbox();
+    const localSandbox = {
+      sandboxKind: "centrifugo",
+      commands: { run: jest.fn() },
+    };
     const handle = makeFakeHandle();
 
-    const { context } = makeContext({ sandbox: e2b });
-    const sessionId = await createSession(context, handle);
+    const { context } = makeContext({ sandbox: localSandbox });
+    const sessionId = await createSession(context, handle, true);
 
     const tool = createInteractTerminalSession(context);
     const first = (await runTool(tool, {

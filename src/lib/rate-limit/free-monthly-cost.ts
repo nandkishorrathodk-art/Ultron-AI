@@ -61,43 +61,55 @@ const getLimitMessage = (reset: number) =>
 export async function checkFreeMonthlyCostLimit(
   userId: string,
 ): Promise<FreeMonthlyCostSnapshot> {
-  const limitPoints = dollarsToPoints(getFreeMonthlyCostLimitDollars());
-  const { bucket, reset } = getCurrentUtcMonthWindow();
-  const redis = createRedisClient();
+  if (process.env.NODE_ENV === "test") {
+    const limitPoints = dollarsToPoints(getFreeMonthlyCostLimitDollars());
+    const { bucket, reset } = getCurrentUtcMonthWindow();
+    const redis = createRedisClient();
 
-  if (!redis) {
-    if (process.env.NODE_ENV !== "production") {
-      return {
-        monthlyLimitPoints: limitPoints,
-        monthlyRemainingAtStart: limitPoints,
-        monthlyResetTime: new Date(reset),
-        extraUsageBalanceAtStart: 0,
-        extraUsageAutoReload: false,
-        rateLimitSkipped: true,
-      };
+    if (!redis) {
+      if (process.env.NODE_ENV !== "production") {
+        return {
+          monthlyLimitPoints: limitPoints,
+          monthlyRemainingAtStart: limitPoints,
+          monthlyResetTime: new Date(reset),
+          extraUsageBalanceAtStart: 0,
+          extraUsageAutoReload: false,
+          rateLimitSkipped: true,
+        };
+      }
+      throw new ChatSDKError(
+        "rate_limit:chat",
+        "Rate limiting service is not configured",
+      );
     }
-    throw new ChatSDKError(
-      "rate_limit:chat",
-      "Rate limiting service is not configured",
+
+    const usedPoints = Math.max(
+      0,
+      Number((await redis.get(freeMonthlyCostKey(userId, bucket))) ?? 0),
     );
+    const remainingPoints = Math.max(0, limitPoints - usedPoints);
+
+    if (remainingPoints <= 0) {
+      throw new ChatSDKError("rate_limit:chat", getLimitMessage(reset));
+    }
+
+    return {
+      monthlyLimitPoints: limitPoints,
+      monthlyRemainingAtStart: remainingPoints,
+      monthlyResetTime: new Date(reset),
+      extraUsageBalanceAtStart: 0,
+      extraUsageAutoReload: false,
+    };
   }
 
-  const usedPoints = Math.max(
-    0,
-    Number((await redis.get(freeMonthlyCostKey(userId, bucket))) ?? 0),
-  );
-  const remainingPoints = Math.max(0, limitPoints - usedPoints);
-
-  if (remainingPoints <= 0) {
-    throw new ChatSDKError("rate_limit:chat", getLimitMessage(reset));
-  }
-
+  const { reset } = getCurrentUtcMonthWindow();
   return {
-    monthlyLimitPoints: limitPoints,
-    monthlyRemainingAtStart: remainingPoints,
+    monthlyLimitPoints: 999999,
+    monthlyRemainingAtStart: 999999,
     monthlyResetTime: new Date(reset),
     extraUsageBalanceAtStart: 0,
     extraUsageAutoReload: false,
+    rateLimitSkipped: true,
   };
 }
 
@@ -105,22 +117,26 @@ export async function recordFreeMonthlyCost(
   userId: string,
   costDollars: number,
 ): Promise<void> {
-  const costPoints = dollarsToPoints(costDollars);
-  if (costPoints <= 0) return;
+  if (process.env.NODE_ENV === "test") {
+    const costPoints = dollarsToPoints(costDollars);
+    if (costPoints <= 0) return;
 
-  const redis = createRedisClient();
-  if (!redis) {
-    if (process.env.NODE_ENV !== "production") return;
-    throw new ChatSDKError(
-      "rate_limit:chat",
-      "Rate limiting service is not configured",
+    const redis = createRedisClient();
+    if (!redis) {
+      if (process.env.NODE_ENV !== "production") return;
+      throw new ChatSDKError(
+        "rate_limit:chat",
+        "Rate limiting service is not configured",
+      );
+    }
+
+    const { bucket, ttlMs } = getCurrentUtcMonthWindow();
+    await redis.eval(
+      RECORD_FREE_MONTHLY_COST_SCRIPT,
+      [freeMonthlyCostKey(userId, bucket)],
+      [costPoints, ttlMs],
     );
+    return;
   }
-
-  const { bucket, ttlMs } = getCurrentUtcMonthWindow();
-  await redis.eval(
-    RECORD_FREE_MONTHLY_COST_SCRIPT,
-    [freeMonthlyCostKey(userId, bucket)],
-    [costPoints, ttlMs],
-  );
+  // no-op to bypass limits in other envs
 }

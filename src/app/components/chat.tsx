@@ -58,6 +58,7 @@ import { parseRateLimitWarning } from "@/lib/utils/parse-rate-limit-warning";
 import Loading from "@/components/ui/loading";
 
 import { HackingSuggestions } from "./HackingSuggestions";
+import AgentSessionView from "./AgentSessionView";
 
 // --- Streaming ephemeral state reducer ---
 // Consolidates high-frequency streaming state updates into a single dispatch
@@ -204,6 +205,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
 
   const {
     input,
+    setInput,
     chatMode,
     setChatMode,
     sidebarOpen,
@@ -233,6 +235,8 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
   const [chatId, setChatId] = useState<string>(() => {
     return routeChatId || uuidv4();
   });
+
+  const [autonomousSession, setAutonomousSession] = useState<{ sessionId: string; target: string; mode: string } | null>(null);
 
   // Track whether this is an existing chat (prop-driven initially, flips after first completion)
   const [isExistingChat, setIsExistingChat] = useState<boolean>(!!routeChatId);
@@ -735,10 +739,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
       hasInitializedModeFromChatRef.current = true;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const slug = (chatData as any).default_model_slug;
-      if (slug === "ask" || slug === "agent") {
-        setChatMode(slug);
-      } else if (slug === "agent-long") {
-        // Legacy chats stored as agent-long map to agent mode
+      if (slug === "ask" || slug === "agent" || slug === "agent-long") {
         setChatMode("agent");
       }
     }
@@ -1068,7 +1069,7 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
 
   // Chat handlers
   const {
-    handleSubmit,
+    handleSubmit: baseHandleSubmit,
     handleStop,
     handleRegenerate,
     handleRetry,
@@ -1091,6 +1092,56 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
     },
     resetAutoContinueCount,
   });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const lowercaseInput = input.trim().toLowerCase();
+
+    // Check if it's an autonomous scan start command
+    const match = lowercaseInput.match(/(?:start|run)?\s*autonomous\s*scan\s*(?:on)?\s*([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    if (match && match[1]) {
+      const target = match[1];
+      toast.info(`Initializing autonomous scan on ${target}...`);
+
+      // Append user message locally to keep chat history flowing
+      const userMsgId = uuidv4();
+      setMessages(prev => [...prev, {
+        id: userMsgId,
+        role: "user",
+        content: input.trim(),
+        parts: [{ type: "text", text: input.trim() }],
+        createdAt: new Date(),
+      } as any]);
+
+      try {
+        const response = await fetch("/api/autonomous", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target, mode: "standard" }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAutonomousSession({
+            sessionId: data.sessionId,
+            target: data.target,
+            mode: data.mode
+          });
+          toast.success("Autonomous scan started!");
+        } else {
+          toast.error("Failed to start autonomous scan.");
+        }
+      } catch (err) {
+        console.error("Failed to trigger autonomous API:", err);
+        toast.error("Error starting autonomous scan.");
+      }
+
+      setInput("");
+      return;
+    }
+
+    baseHandleSubmit(e);
+  };
 
   const handleScrollToBottom = () => scrollToBottom({ force: true });
 
@@ -1240,6 +1291,8 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
                   chatTitle={chatTitle}
                   branchedFromChatId={branchedFromChatId}
                   branchedFromChatTitle={branchedFromChatTitle}
+                  autonomousSession={autonomousSession}
+                  onStopAutonomousSession={() => setAutonomousSession(null)}
                 />
               ) : (
                 <div className="flex-1 flex flex-col min-h-0">
@@ -1259,7 +1312,11 @@ export const Chat = ({ autoResume }: { autoResume: boolean }) => {
                             </p>
                           </>
                         ) : (
-                          <HackingSuggestions />
+                          <HackingSuggestions
+                            onSelectSuggestion={(query) => {
+                              setInput(query);
+                            }}
+                          />
                         )}
                       </div>
 

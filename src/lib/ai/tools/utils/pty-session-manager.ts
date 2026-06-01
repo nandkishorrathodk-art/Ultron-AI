@@ -36,6 +36,7 @@ export interface PtySession {
   readonly createdAt: number;
   lastActivityAt: number;
   readonly handle: PtyHandle;
+  isE2B?: boolean;
   /**
    * Appended raw bytes. Ring: when total size exceeds `MAX_BUFFER_BYTES`,
    * old chunks are dropped (FIFO).
@@ -59,6 +60,7 @@ export interface CreateSessionOpts {
   createHandle: () => Promise<PtyHandle>;
   cols: number;
   rows: number;
+  isE2B?: boolean;
 }
 
 interface InternalSession extends PtySession {
@@ -136,6 +138,7 @@ export class PtySessionManager {
         unsubscribe: null,
         closing: false,
         exitedNaturally: null,
+        isE2B: opts.isE2B,
       };
 
       // Subscribe to handle output
