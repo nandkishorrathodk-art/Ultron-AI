@@ -145,22 +145,16 @@ const TOOL_TIMEOUTS: Record<string, number> = {
 // ─── Model Fallback Chain ─────────────────────────────────────────────────────
 const MODEL_CHAIN = [
   {
-    label: "Primary (Llama 405B)",
+    label: "Primary",
     baseURL: process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
     apiKey: process.env.LLM_API_KEY!,
-    model: process.env.LLM_MODEL ?? "meta/llama-3.1-405b-instruct",
+    model: process.env.LLM_MODEL ?? "nvidia/llama-3.1-nemotron-ultra-253b-v1",
   },
   {
     label: "Fallback (OpenRouter / Sonnet)",
     baseURL: "https://openrouter.ai/api/v1",
     apiKey: process.env.OPENROUTER_API_KEY ?? "",
     model: "anthropic/claude-sonnet-4-6",
-  },
-  {
-    label: "Emergency (OpenRouter / Llama 70B)",
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY ?? "",
-    model: "meta-llama/llama-3.1-70b-instruct",
   },
 ];
 
@@ -816,7 +810,7 @@ export async function POST(req: Request) {
     // Ensure we load any dynamic overrides from runtimeSettings
     const dynamicModelChain = [
       {
-        label: "Primary (Dynamic Model)",
+        label: "Primary",
         baseURL:
           runtimeSettings.llmBaseUrl ||
           process.env.LLM_BASE_URL ||
@@ -825,19 +819,13 @@ export async function POST(req: Request) {
         model:
           runtimeSettings.llmModel ||
           process.env.LLM_MODEL ||
-          "meta/llama-3.1-405b-instruct",
+          "nvidia/llama-3.1-nemotron-ultra-253b-v1",
       },
       {
         label: "Fallback (OpenRouter / Sonnet)",
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: process.env.OPENROUTER_API_KEY ?? "",
         model: "anthropic/claude-sonnet-4-6",
-      },
-      {
-        label: "Emergency (OpenRouter / Llama 70B)",
-        baseURL: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY ?? "",
-        model: "meta-llama/llama-3.1-70b-instruct",
       },
     ];
 
@@ -890,12 +878,28 @@ export async function POST(req: Request) {
         const headers = new Headers(response.headers);
         headers.set("X-Session-Id", activeSession);
 
-        // Wrap the stream to rewrite upstream auth errors into user-friendly messages
+        // Wrap the stream to rewrite upstream auth errors and filter degenerate output
+        let degenerateCount = 0;
         const rewrittenBody = response.body
           ? response.body.pipeThrough(
               new TransformStream<Uint8Array, Uint8Array>({
                 transform(chunk, controller) {
                   const text = new TextDecoder().decode(chunk);
+
+                  // Detect degenerate "assistant" repeated output from confused models
+                  if (
+                    text.includes('"text-delta"') &&
+                    text.includes('"assistant"')
+                  ) {
+                    degenerateCount++;
+                    if (degenerateCount > 3) {
+                      // Skip degenerate chunks — model is confused
+                      return;
+                    }
+                  } else {
+                    degenerateCount = 0;
+                  }
+
                   const hasAuthKeyword =
                     text.includes("User not found") ||
                     text.includes("Unauthorized") ||
