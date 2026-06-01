@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Authenticated, Unauthenticated } from "convex/react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -9,6 +10,27 @@ import { UltronAISVG } from "@/components/icons/ultron-svg";
 import { DownloadSection, useDetectedPlatform } from "./DownloadSection";
 import { downloadLinks } from "./constants";
 import { AppleIcon, WindowsIcon, LinuxIcon } from "./icons";
+
+class ConvexErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 function AuthenticatedHeader() {
   return (
@@ -107,9 +129,9 @@ function DownloadContent() {
   );
 }
 
-export function DownloadPageContent() {
+function ConvexAwareLayout() {
   return (
-    <div className="min-h-screen bg-background">
+    <>
       <Authenticated>
         <AuthenticatedHeader />
         <DownloadContent />
@@ -118,6 +140,40 @@ export function DownloadPageContent() {
         <Header hideDownload />
         <DownloadContent />
       </Unauthenticated>
+    </>
+  );
+}
+
+function FallbackHeader() {
+  return (
+    <header className="w-full px-6 max-sm:px-4 flex-shrink-0">
+      <div className="py-[10px] flex gap-10 items-center justify-between">
+        <div className="flex items-center gap-2">
+          <UltronAISVG theme="dark" scale={0.15} />
+          <span className="text-foreground text-xl font-semibold max-sm:text-lg">
+            Ultron-AI
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function FallbackLayout() {
+  return (
+    <>
+      <FallbackHeader />
+      <DownloadContent />
+    </>
+  );
+}
+
+export function DownloadPageContent() {
+  return (
+    <div className="min-h-screen bg-background">
+      <ConvexErrorBoundary fallback={<FallbackLayout />}>
+        <ConvexAwareLayout />
+      </ConvexErrorBoundary>
     </div>
   );
 }

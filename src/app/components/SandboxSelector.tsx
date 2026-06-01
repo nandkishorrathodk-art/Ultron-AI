@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { openSettingsDialog } from "@/lib/utils/settings-dialog";
 import { useTauri } from "@/app/hooks/useTauri";
@@ -55,7 +55,63 @@ export function SandboxSelector({
     return detectPlatform();
   }, []);
 
-  const connections = useQuery(api.localSandbox.listConnections);
+  // Convex connections (returns undefined when Convex is not configured)
+  const convexConnections = useQuery(api.localSandbox.listConnections);
+
+  // REST API fallback for direct local sandbox connections
+  const [directConnections, setDirectConnections] = useState<
+    Array<{
+      connectionId: string;
+      name: string;
+      isDesktop: boolean;
+      osInfo?: { hostname?: string };
+      streamReady?: boolean;
+    }>
+  >([]);
+
+  const fetchDirectConnections = useCallback(() => {
+    fetch("/api/sandbox/local/connect")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.connections) {
+          setDirectConnections(
+            data.connections.filter(
+              (c: { streamReady?: boolean }) => c.streamReady,
+            ),
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchDirectConnections();
+    const interval = setInterval(fetchDirectConnections, 10_000);
+    return () => clearInterval(interval);
+  }, [fetchDirectConnections]);
+
+  // Merge Convex connections with direct connections (dedup by connectionId)
+  const mergedConnections = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        connectionId: string;
+        name: string;
+        isDesktop: boolean;
+        osInfo?: { hostname?: string };
+      }
+    >();
+    if (convexConnections) {
+      for (const c of convexConnections) map.set(c.connectionId, c);
+    }
+    for (const c of directConnections) {
+      if (!map.has(c.connectionId)) map.set(c.connectionId, c);
+    }
+    return Array.from(map.values());
+  }, [convexConnections, directConnections]);
+
+  const connections =
+    mergedConnections.length > 0 ? mergedConnections : convexConnections;
   const cloudOption: ConnectionOption = {
     id: "e2b",
     label: "Cloud",

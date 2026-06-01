@@ -3,9 +3,24 @@ import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "ultron_session";
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days
+const DEFAULT_SECRET = "ultron-ai-default-secret-change-in-production";
+
+let defaultSecretWarned = false;
 
 function getSecret() {
-  const secret = process.env.SESSION_SECRET || process.env.ULTRON_API_KEY || "ultron-v2-default-secret-change-me";
+  const secret =
+    process.env.JWT_SECRET ||
+    process.env.SESSION_SECRET ||
+    process.env.AUTH_SECRET ||
+    DEFAULT_SECRET;
+
+  if (secret === DEFAULT_SECRET && !defaultSecretWarned) {
+    defaultSecretWarned = true;
+    console.warn(
+      "[Ultron] ⚠️  WARNING: Using default JWT secret. Set JWT_SECRET in .env for production.",
+    );
+  }
+
   return new TextEncoder().encode(secret);
 }
 
@@ -14,7 +29,10 @@ export interface SessionPayload extends JWTPayload {
   role: "admin" | "user";
 }
 
-export async function createSession(email: string, role: "admin" | "user" = "admin"): Promise<string> {
+export async function createSession(
+  email: string,
+  role: "admin" | "user" = "admin",
+): Promise<string> {
   const token = await new SignJWT({ email, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -51,7 +69,9 @@ export async function deleteSession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+export async function verifySessionToken(
+  token: string,
+): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
     return payload as SessionPayload;

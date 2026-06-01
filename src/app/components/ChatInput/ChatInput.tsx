@@ -101,6 +101,36 @@ export const ChatInput = ({
   // 1. Requires local sandbox preference (not e2b)
   const isFreeAgent =
     !isCheckingProPlan && subscription === "free" && isAgentMode(chatMode);
+  const prevHasLocalSandboxRef = useRef(hasLocalSandbox);
+  useEffect(() => {
+    const wasConnected = prevHasLocalSandboxRef.current;
+    prevHasLocalSandboxRef.current = hasLocalSandbox;
+
+    if (
+      hasLocalSandbox &&
+      !wasConnected &&
+      subscription === "free" &&
+      !isAgentMode(chatMode)
+    ) {
+      setChatMode("agent");
+      if (defaultLocalSandboxPreference) {
+        setSandboxPreference(defaultLocalSandboxPreference);
+      }
+      return;
+    }
+
+    if (!isFreeAgent) return;
+    if (!hasLocalSandbox) {
+      setChatMode("ask");
+      if (wasConnected) {
+        toast.info("Local sandbox disconnected. Switched to Ask mode.", {
+          description: "Reconnect your sandbox to use Agent mode.",
+          duration: 5000,
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFreeAgent, hasLocalSandbox, subscription, chatMode]);
 
   useEffect(() => {
     if (!isFreeAgent) return;

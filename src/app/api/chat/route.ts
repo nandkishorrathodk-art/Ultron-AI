@@ -19,6 +19,7 @@ import {
   getOrCreateSandbox,
   killSandbox,
   addSandboxLog,
+  executeOnLocalSandbox,
 } from "@/lib/sandbox-manager";
 import { PentestCoordinator } from "../../../lib/agent/coordinator";
 import {
@@ -144,22 +145,16 @@ const TOOL_TIMEOUTS: Record<string, number> = {
 // ─── Model Fallback Chain ─────────────────────────────────────────────────────
 const MODEL_CHAIN = [
   {
-    label: "Primary (Llama 405B)",
+    label: "Primary",
     baseURL: process.env.LLM_BASE_URL ?? "https://integrate.api.nvidia.com/v1",
     apiKey: process.env.LLM_API_KEY!,
-    model: process.env.LLM_MODEL ?? "meta/llama-3.1-405b-instruct",
+    model: process.env.LLM_MODEL ?? "nvidia/llama-3.1-nemotron-ultra-253b-v1",
   },
   {
     label: "Fallback (OpenRouter / Sonnet)",
     baseURL: "https://openrouter.ai/api/v1",
     apiKey: process.env.OPENROUTER_API_KEY ?? "",
     model: "anthropic/claude-sonnet-4-6",
-  },
-  {
-    label: "Emergency (OpenRouter / Llama 70B)",
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY ?? "",
-    model: "meta-llama/llama-3.1-70b-instruct",
   },
 ];
 
@@ -240,14 +235,23 @@ function sanitizeMessages(messages: any[]): any[] {
 }
 
 // ─── Tool Definitions ─────────────────────────────────────────────────────────
-function buildTools(sessionId: string) {
+function buildTools(
+  sessionId: string,
+  sandboxMode: string = "e2b",
+  sandboxConnectionId?: string,
+) {
+  const isLocalSandbox =
+    sandboxMode === "desktop" || (sandboxMode !== "e2b" && sandboxMode !== "");
+
   return {
     // ── Tool 1: execute_bash (upgraded — persistent sandbox) ──────────────────
     execute_bash: tool({
-      description:
-        "Execute bash commands in a PERSISTENT Linux sandbox. " +
-        "Files and installed tools survive between calls in the same session. " +
-        "All results auto-saved to /home/user/pentest/. Use for ALL hacking tasks.",
+      description: isLocalSandbox
+        ? "Execute bash commands on the user's LOCAL machine. " +
+          "Commands run directly on the host OS. Use for ALL tasks."
+        : "Execute bash commands in a PERSISTENT Linux sandbox. " +
+          "Files and installed tools survive between calls in the same session. " +
+          "All results auto-saved to /home/user/pentest/. Use for ALL hacking tasks.",
       parameters: z.object({
         command: z
           .string()
@@ -279,45 +283,64 @@ function buildTools(sessionId: string) {
 
         const startTime = Date.now();
         try {
-          // v2: reuse persistent sandbox instead of creating new one
-          const sandbox = await getOrCreateSandbox(sessionId);
+          console.log(
+            `[Ultron] ▶ [${risk.toUpperCase()}]${isLocalSandbox ? " [LOCAL]" : ""} ${command}`,
+          );
 
-          console.log(`[Ultron] ▶ [${risk.toUpperCase()}] ${command}`);
+          let stdout: string;
+          let stderr: string;
+          let exitCode: number;
 
-          const exec = await sandbox.commands.run(command, {
-            timeoutMs: TOOL_TIMEOUTS.execute_bash,
-          });
+          if (isLocalSandbox) {
+            // Local sandbox: dispatch to connected CLI
+            const result = await executeOnLocalSandbox(command, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.execute_bash,
+            });
+            stdout = result.stdout;
+            stderr = result.stderr;
+            exitCode = result.exitCode;
+          } else {
+            // E2B Cloud sandbox
+            const sandbox = await getOrCreateSandbox(sessionId);
+            const exec = await sandbox.commands.run(command, {
+              timeoutMs: TOOL_TIMEOUTS.execute_bash,
+            });
+            stdout = exec.stdout;
+            stderr = exec.stderr;
+            exitCode = exec.exitCode;
+          }
 
           const durationMs = Date.now() - startTime;
           addSandboxLog(
             sessionId,
             command,
-            exec.stdout + (exec.stderr ? "\n" + exec.stderr : ""),
+            stdout + (stderr ? "\n" + stderr : ""),
           );
 
           addShellEntry(
             sessionId,
             command,
-            exec.stdout,
-            exec.stderr,
-            exec.exitCode,
+            stdout,
+            stderr,
+            exitCode,
             durationMs,
           );
           addWorklogEntry(
             sessionId,
             "command",
             `Executed shell command: ${command.slice(0, 60)}${command.length > 60 ? "..." : ""}`,
-            exec.exitCode === 0 ? "success" : "error",
-            `Exit code: ${exec.exitCode}\n\nSTDOUT:\n${exec.stdout.slice(0, 1000)}\n\nSTDERR:\n${exec.stderr.slice(0, 1000)}`,
+            exitCode === 0 ? "success" : "error",
+            `Exit code: ${exitCode}\n\nSTDOUT:\n${stdout.slice(0, 1000)}\n\nSTDERR:\n${stderr.slice(0, 1000)}`,
           );
 
           return {
             status: "success",
             risk_level: risk,
             command,
-            stdout: exec.stdout || "(no output)",
-            stderr: exec.stderr || "",
-            exit_code: exec.exitCode,
+            stdout: stdout || "(no output)",
+            stderr: stderr || "",
+            exit_code: exitCode,
           };
         } catch (err: any) {
           const durationMs = Date.now() - startTime;
@@ -507,11 +530,19 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ path, max_lines = 200 }) => {
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
-          const exec = await sandbox.commands.run(
-            `[ -f "${path}" ] && head -n ${max_lines} "${path}" || echo "FILE NOT FOUND: ${path}"`,
-            { timeoutMs: TOOL_TIMEOUTS.read_file },
-          );
+          let exec;
+          const readCmd = `[ -f "${path}" ] && head -n ${max_lines} "${path}" || echo "FILE NOT FOUND: ${path}"`;
+          if (isLocalSandbox) {
+            exec = await executeOnLocalSandbox(readCmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.read_file,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            exec = await sandbox.commands.run(readCmd, {
+              timeoutMs: TOOL_TIMEOUTS.read_file,
+            });
+          }
 
           const content = exec.stdout || "(empty file)";
 
@@ -566,13 +597,20 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ path, content }) => {
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
           // Use base64 encoding to safely handle special characters in content
           const encoded = Buffer.from(content).toString("base64");
-          await sandbox.commands.run(
-            `mkdir -p "$(dirname "${path}")" && echo "${encoded}" | base64 -d > "${path}"`,
-            { timeoutMs: TOOL_TIMEOUTS.write_file },
-          );
+          const writeCmd = `mkdir -p "$(dirname "${path}")" && echo "${encoded}" | base64 -d > "${path}"`;
+          if (isLocalSandbox) {
+            await executeOnLocalSandbox(writeCmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.write_file,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            await sandbox.commands.run(writeCmd, {
+              timeoutMs: TOOL_TIMEOUTS.write_file,
+            });
+          }
 
           trackFileChange(sessionId, path, "write", content, content.length);
           trackIDEFile(sessionId, path, content);
@@ -620,6 +658,19 @@ function buildTools(sessionId: string) {
       // @ts-ignore
       execute: async ({ tool_name, method, source }) => {
         const src = source || tool_name;
+
+        // Sanitize input: reject shell metacharacters to prevent command injection
+        const shellUnsafe = /[;&|`$(){}[\]<>!#\n\r\\'"]/;
+        if (shellUnsafe.test(src) || shellUnsafe.test(tool_name)) {
+          return {
+            status: "error",
+            tool_name,
+            method,
+            output:
+              "Rejected: tool name or source contains disallowed characters",
+          };
+        }
+
         const commands: Record<string, string> = {
           apt: `apt-get install -y ${src} 2>&1 | tail -5`,
           pip: `pip3 install ${src} 2>&1 | tail -5`,
@@ -630,11 +681,19 @@ function buildTools(sessionId: string) {
         const cmd = commands[method];
 
         try {
-          const sandbox = await getOrCreateSandbox(sessionId);
           console.log(`[Ultron] 📦 Installing ${tool_name} via ${method}`);
-          const exec = await sandbox.commands.run(cmd, {
-            timeoutMs: TOOL_TIMEOUTS.install_tool,
-          });
+          let exec;
+          if (isLocalSandbox) {
+            exec = await executeOnLocalSandbox(cmd, {
+              connectionId: sandboxConnectionId,
+              timeoutMs: TOOL_TIMEOUTS.install_tool,
+            });
+          } else {
+            const sandbox = await getOrCreateSandbox(sessionId);
+            exec = await sandbox.commands.run(cmd, {
+              timeoutMs: TOOL_TIMEOUTS.install_tool,
+            });
+          }
 
           const output =
             exec.stdout?.slice(-500) || exec.stderr?.slice(-500) || "Installed";
@@ -672,7 +731,13 @@ function buildTools(sessionId: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { messages, sessionId, targetScope, mode } = body;
+    const { messages, sessionId, targetScope, mode, sandboxPreference } = body;
+    // sandboxPreference from frontend: "e2b" | "desktop" | "<connectionId>"
+    const sandboxMode = sandboxPreference || "e2b";
+    const sandboxConnectionId =
+      sandboxMode !== "e2b" && sandboxMode !== "desktop"
+        ? sandboxMode
+        : undefined;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return Response.json(
@@ -763,7 +828,7 @@ export async function POST(req: Request) {
     // Ensure we load any dynamic overrides from runtimeSettings
     const dynamicModelChain = [
       {
-        label: "Primary (Dynamic Model)",
+        label: "Primary",
         baseURL:
           runtimeSettings.llmBaseUrl ||
           process.env.LLM_BASE_URL ||
@@ -772,19 +837,13 @@ export async function POST(req: Request) {
         model:
           runtimeSettings.llmModel ||
           process.env.LLM_MODEL ||
-          "meta/llama-3.1-405b-instruct",
+          "nvidia/llama-3.1-nemotron-ultra-253b-v1",
       },
       {
         label: "Fallback (OpenRouter / Sonnet)",
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: process.env.OPENROUTER_API_KEY ?? "",
         model: "anthropic/claude-sonnet-4-6",
-      },
-      {
-        label: "Emergency (OpenRouter / Llama 70B)",
-        baseURL: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY ?? "",
-        model: "meta-llama/llama-3.1-70b-instruct",
       },
     ];
 
@@ -822,7 +881,7 @@ export async function POST(req: Request) {
           system: SYSTEM_PROMPT,
           messages: cleanMessages,
           stopWhen: stepCountIs(8),
-          tools: buildTools(activeSession),
+          tools: buildTools(activeSession, sandboxMode, sandboxConnectionId),
           // Return session ID in headers so frontend can persist it
           onFinish: () => {
             console.log(
@@ -837,7 +896,47 @@ export async function POST(req: Request) {
         const headers = new Headers(response.headers);
         headers.set("X-Session-Id", activeSession);
 
-        return new Response(response.body, {
+        // Wrap the stream to rewrite upstream auth errors and filter degenerate output
+        let degenerateCount = 0;
+        const rewrittenBody = response.body
+          ? response.body.pipeThrough(
+              new TransformStream<Uint8Array, Uint8Array>({
+                transform(chunk, controller) {
+                  const text = new TextDecoder().decode(chunk);
+
+                  // Detect degenerate "assistant" repeated output from confused models
+                  if (
+                    text.includes('"text-delta"') &&
+                    text.includes('"assistant"')
+                  ) {
+                    degenerateCount++;
+                    if (degenerateCount > 3) {
+                      // Skip degenerate chunks — model is confused
+                      return;
+                    }
+                  } else {
+                    degenerateCount = 0;
+                  }
+
+                  const hasAuthKeyword =
+                    text.includes("User not found") ||
+                    text.includes("Unauthorized") ||
+                    text.includes("Authentication failed");
+                  if (hasAuthKeyword && text.includes('"type":"error"')) {
+                    const rewritten = text.replace(
+                      /"errorText":"[^"]*(?:User not found|Unauthorized|Authentication failed)[^"]*"/g,
+                      '"errorText":"AI provider authentication failed \\u2014 check your API key in Settings or .env.local"',
+                    );
+                    controller.enqueue(new TextEncoder().encode(rewritten));
+                  } else {
+                    controller.enqueue(chunk);
+                  }
+                },
+              }),
+            )
+          : null;
+
+        return new Response(rewrittenBody, {
           status: response.status,
           headers,
         });
@@ -851,8 +950,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // All models failed
-    throw lastError ?? new Error("All models in fallback chain failed");
+    // All models failed — improve error message for common upstream auth errors
+    const rawMsg = lastError?.message ?? "All models in fallback chain failed";
+    const isUpstreamAuth =
+      rawMsg.includes("User not found") ||
+      rawMsg.includes("401") ||
+      rawMsg.includes("Unauthorized");
+    const userMessage = isUpstreamAuth
+      ? "AI provider authentication failed — check your API key in Settings or .env.local"
+      : rawMsg;
+
+    throw new Error(userMessage);
   } catch (err: any) {
     console.error("[Ultron v2] Fatal:", err);
     return Response.json(
