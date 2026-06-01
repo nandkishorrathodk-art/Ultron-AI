@@ -53,8 +53,8 @@ describe("ChatInput - Integration Tests", () => {
     jest.clearAllMocks();
   });
 
-  describe("Ask Mode Integration", () => {
-    it("should render with ask mode as default", () => {
+  describe("Default Input Integration", () => {
+    it("should render with agent placeholder as default", () => {
       render(
         <TestWrapper>
           <ChatInput
@@ -66,9 +66,8 @@ describe("ChatInput - Integration Tests", () => {
       );
 
       expect(
-        screen.getByPlaceholderText("Ask, learn, brainstorm"),
+        screen.getByPlaceholderText("Hack, test, secure anything"),
       ).toBeInTheDocument();
-      expect(screen.getByText("Ask")).toBeInTheDocument();
     });
 
     it("should show only submit button when ready in ask mode", () => {
@@ -137,11 +136,7 @@ describe("ChatInput - Integration Tests", () => {
   });
 
   describe("Agent Mode Integration", () => {
-    it("should allow switching to agent mode via global state", async () => {
-      // Note: Mode switching UI test removed due to flakiness with dropdown interactions
-      // Mode switching is tested at the GlobalState level in GlobalState.messageQueue.test.tsx
-      // This is primarily an integration test of rendering in both modes
-
+    it("should render in agent mode by default", async () => {
       render(
         <TestWrapper>
           <ChatInput
@@ -152,19 +147,14 @@ describe("ChatInput - Integration Tests", () => {
         </TestWrapper>,
       );
 
-      // Component should render in default ask mode
       expect(
-        screen.getByPlaceholderText("Ask, learn, brainstorm"),
+        screen.getByPlaceholderText("Hack, test, secure anything"),
       ).toBeInTheDocument();
     });
   });
 
   describe("Mode Switching Integration", () => {
-    it("should handle mode state via GlobalState provider", async () => {
-      // Note: UI-based mode switching tests removed due to dropdown interaction complexity
-      // Mode switching logic is thoroughly tested in GlobalState.messageQueue.test.tsx
-      // Integration tests focus on rendering correctly based on mode state
-
+    it("should render with agent placeholder regardless of updates", async () => {
       const { rerender } = render(
         <TestWrapper>
           <ChatInput
@@ -175,9 +165,8 @@ describe("ChatInput - Integration Tests", () => {
         </TestWrapper>,
       );
 
-      // Should render in ask mode by default
       expect(
-        screen.getByPlaceholderText("Ask, learn, brainstorm"),
+        screen.getByPlaceholderText("Hack, test, secure anything"),
       ).toBeInTheDocument();
 
       // Re-render with different status
@@ -191,9 +180,8 @@ describe("ChatInput - Integration Tests", () => {
         </TestWrapper>,
       );
 
-      // Should still show ask mode placeholder
       expect(
-        screen.getByPlaceholderText("Ask, learn, brainstorm"),
+        screen.getByPlaceholderText("Hack, test, secure anything"),
       ).toBeInTheDocument();
     });
   });
@@ -227,7 +215,7 @@ describe("ChatInput - Integration Tests", () => {
 
       // Component should render without errors in submitted status
       expect(
-        screen.getByPlaceholderText("Ask, learn, brainstorm"),
+        screen.getByPlaceholderText("Hack, test, secure anything"),
       ).toBeInTheDocument();
     });
 
@@ -242,7 +230,7 @@ describe("ChatInput - Integration Tests", () => {
         </TestWrapper>,
       );
 
-      const textarea = screen.getByPlaceholderText("Ask, learn, brainstorm");
+      const textarea = screen.getByPlaceholderText("Hack, test, secure anything");
 
       // Type some text
       fireEvent.change(textarea, { target: { value: "Test message" } });
@@ -264,7 +252,7 @@ describe("ChatInput - Integration Tests", () => {
         </TestWrapper>,
       );
 
-      const textarea = screen.getByPlaceholderText("Ask, learn, brainstorm");
+      const textarea = screen.getByPlaceholderText("Hack, test, secure anything");
 
       // Type some text
       fireEvent.change(textarea, { target: { value: "Test message" } });

@@ -176,11 +176,7 @@ export const GlobalStateProvider: React.FC<GlobalStateProviderProps> = ({
   const prevIsMobile = useRef(isMobile);
   const [input, setInput] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileState[]>([]);
-  const [chatMode, setChatMode] = useState<ChatMode>(() => {
-    const saved = readChatMode();
-    if (!isChatMode(saved)) return "ask";
-    return saved;
-  });
+  const [chatMode, setChatMode] = useState<ChatMode>("agent");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarContent, setSidebarContent] = useState<SidebarContent | null>(
     null,

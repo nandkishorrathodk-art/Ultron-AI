@@ -276,6 +276,7 @@ export const createInteractTerminalSession = (context: ToolContext) => {
         const guardrailResult = checkCommandGuardrails(
           checkInput,
           effectiveGuardrails,
+          session.isE2B,
         );
         if (!guardrailResult.allowed) {
           return errorResult(

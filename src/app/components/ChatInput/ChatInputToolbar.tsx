@@ -1,7 +1,6 @@
 "use client";
 
 import { AttachmentButton } from "@/app/components/AttachmentButton";
-import { ChatModeSelector } from "./ChatModeSelector";
 import { ModelSelector } from "@/app/components/ModelSelector";
 import {
   SubmitStopButton,
@@ -35,7 +34,6 @@ export function ChatInputToolbar({
       <div className="shrink-0">
         <AttachmentButton onAttachClick={onAttachClick} />
       </div>
-      <ChatModeSelector />
       <ModelSelector
         value={selectedModel}
         onChange={setSelectedModel}

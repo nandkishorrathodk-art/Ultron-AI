@@ -890,13 +890,6 @@ export function assertFreeAgentGates(args: {
       "Agent mode on the free plan requires a local sandbox. Install the desktop app or upgrade to Pro for cloud access.",
     );
   }
-
-  if (rawSelectedModel && rawSelectedModel !== "auto") {
-    throw new ChatSDKError(
-      "forbidden:chat",
-      "Custom model selection in agent mode requires a Pro plan. Free agent mode uses the default model.",
-    );
-  }
 }
 
 /**

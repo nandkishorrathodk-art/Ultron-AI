@@ -23,6 +23,7 @@ import { WandSparkles } from "lucide-react";
 import DotsSpinner from "@/components/ui/dots-spinner";
 import { hasTextContent } from "@/lib/utils/message-utils";
 import { useDataStreamState } from "./DataStreamProvider";
+import AgentSessionView from "./AgentSessionView";
 
 interface MessagesProps {
   messages: ChatMessage[];
@@ -59,6 +60,8 @@ interface MessagesProps {
   chatTitle?: string | null;
   branchedFromChatId?: string;
   branchedFromChatTitle?: string;
+  autonomousSession?: { sessionId: string; target: string; mode: string } | null;
+  onStopAutonomousSession?: () => void;
 }
 
 export const Messages = ({
@@ -85,6 +88,8 @@ export const Messages = ({
   chatTitle,
   branchedFromChatId,
   branchedFromChatTitle,
+  autonomousSession,
+  onStopAutonomousSession,
 }: MessagesProps) => {
   const { isAutoResuming } = useDataStreamState();
   // Prefetch and cache image URLs for better performance
@@ -339,6 +344,16 @@ export const Messages = ({
               summarizationStatus={summarizationStatus}
             />
           ))}
+
+          {/* Autonomous Session View */}
+          {autonomousSession && (
+            <AgentSessionView
+              sessionId={autonomousSession.sessionId}
+              target={autonomousSession.target}
+              mode={autonomousSession.mode}
+              onStop={onStopAutonomousSession}
+            />
+          )}
 
           {/* Processing status - upload/loading dots always separate, summarization only when no content */}
           {(showSummarizationSeparately ||

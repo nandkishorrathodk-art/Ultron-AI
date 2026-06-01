@@ -427,19 +427,37 @@ function buildTools(sessionId: string) {
               .join("\n\n---\n\n");
             resultText = results || "No results";
             source = "tavily";
+          }
+          // Fallback: Jina Search API
+          else if (process.env.JINA_API_KEY) {
+            const res = await fetch(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${process.env.JINA_API_KEY}`,
+                Accept: "application/json",
+              },
+              signal: AbortSignal.timeout(TOOL_TIMEOUTS.web_search),
+            });
+            const data = await res.json();
+            const results = (data.data ?? [])
+              .slice(0, 5)
+              .map((r: any) => `**${r.title}**\n${r.url}\n${r.content || r.description || ""}`)
+              .join("\n\n---\n\n");
+            resultText = results || "No results";
+            source = "jina";
           } else {
             addWorklogEntry(
               sessionId,
               "web_search",
               `Web search failed (No API key): ${query}`,
               "error",
-              "Add SERPER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to .env.local",
+              "Add SERPER_API_KEY, PERPLEXITY_API_KEY, TAVILY_API_KEY, or JINA_API_KEY to .env.local",
             );
             return {
               status: "no_api_key",
               query,
               result:
-                "Add SERPER_API_KEY, PERPLEXITY_API_KEY, or TAVILY_API_KEY to .env.local for web search",
+                "Add SERPER_API_KEY, PERPLEXITY_API_KEY, TAVILY_API_KEY, or JINA_API_KEY to .env.local for web search",
             };
           }
 

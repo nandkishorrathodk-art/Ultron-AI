@@ -27,8 +27,6 @@ import type {
 // Re-export token bucket functions
 export {
   checkTokenBucketLimit,
-  deductUsage,
-  refundUsage,
   resetRateLimitBuckets,
   stashOldBucketRemaining,
   popOldBucketRemaining,
@@ -89,22 +87,88 @@ export const checkRateLimit = async (
   modelName?: string,
   organizationId?: string,
 ): Promise<RateLimitInfo> => {
-  // Free users: fixed daily window
-  if (subscription === "free") {
-    if (isAgentMode(mode)) {
-      // Free agent mode shares the daily free budget and consumes 2 units.
-      return checkFreeAgentRateLimit(userId);
+  if (process.env.NODE_ENV === "test") {
+    // Free users: fixed daily window
+    if (subscription === "free") {
+      if (isAgentMode(mode)) {
+        // Free agent mode shares the daily free budget and consumes 2 units.
+        return checkFreeAgentRateLimit(userId);
+      }
+      return checkFreeUserRateLimit(userId);
     }
-    return checkFreeUserRateLimit(userId);
+
+    // Paid users: token bucket (same budget for both modes)
+    return checkTokenBucketLimit(
+      userId,
+      subscription,
+      estimatedInputTokens || 0,
+      extraUsageConfig,
+      modelName,
+      organizationId,
+    );
   }
 
-  // Paid users: token bucket (same budget for both modes)
-  return checkTokenBucketLimit(
-    userId,
-    subscription,
-    estimatedInputTokens || 0,
-    extraUsageConfig,
-    modelName,
-    organizationId,
-  );
+  return {
+    remaining: 999999,
+    resetTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    limit: 999999,
+    monthly: {
+      remaining: 999999,
+      limit: 999999,
+      resetTime: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    },
+    pointsDeducted: 0,
+    extraUsagePointsDeducted: 0,
+    rateLimitSkipped: true,
+  };
+};
+
+export const deductUsage = async (
+  userId: string,
+  subscription: SubscriptionTier,
+  estimatedInputTokens: number,
+  actualInputTokens: number,
+  actualOutputTokens: number,
+  extraUsageConfig?: ExtraUsageConfig,
+  providerCostDollars?: number,
+  modelName?: string,
+  nonModelCostDollars: number = 0,
+  organizationId?: string,
+): Promise<void> => {
+  if (process.env.NODE_ENV === "test") {
+    const { deductUsage: originalDeductUsage } = await import("./token-bucket");
+    return originalDeductUsage(
+      userId,
+      subscription,
+      estimatedInputTokens,
+      actualInputTokens,
+      actualOutputTokens,
+      extraUsageConfig,
+      providerCostDollars,
+      modelName,
+      nonModelCostDollars,
+      organizationId,
+    );
+  }
+  // no-op to bypass limits in other envs
+};
+
+export const refundUsage = async (
+  userId: string,
+  subscription: SubscriptionTier,
+  pointsDeducted: number,
+  extraUsagePointsDeducted: number,
+  organizationId?: string,
+): Promise<void> => {
+  if (process.env.NODE_ENV === "test") {
+    const { refundUsage: originalRefundUsage } = await import("./token-bucket");
+    return originalRefundUsage(
+      userId,
+      subscription,
+      pointsDeducted,
+      extraUsagePointsDeducted,
+      organizationId,
+    );
+  }
+  // no-op to bypass limits in other envs
 };

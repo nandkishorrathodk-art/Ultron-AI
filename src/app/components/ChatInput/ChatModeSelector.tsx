@@ -49,9 +49,6 @@ export function ChatModeSelector({ className }: ChatModeSelectorProps) {
           setSandboxPreference(defaultLocalSandboxPreference);
         }
       }
-      if (selectedModel !== "auto") {
-        setSelectedModel("auto");
-      }
     } else {
       setAgentUpgradeDialogOpen(true);
     }

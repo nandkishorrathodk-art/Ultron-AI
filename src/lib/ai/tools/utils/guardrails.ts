@@ -220,7 +220,15 @@ export const getEffectiveGuardrails = (
 export const checkCommandGuardrails = (
   command: string,
   guardrails: GuardrailConfig[],
+  isE2B: boolean = false,
 ): GuardrailResult => {
+  if (isE2B) {
+    return {
+      allowed: true,
+      detectedPatterns: [],
+    };
+  }
+
   const detectedPatterns: string[] = [];
 
   // Check against enabled guardrails

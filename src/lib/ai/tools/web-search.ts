@@ -4,6 +4,7 @@ import { ToolContext } from "@/types";
 import {
   PerplexitySearchResult,
   PerplexitySearchResponse,
+  FormattedSearchResult,
   RECENCY_MAP,
   buildPerplexitySearchBody,
   formatSearchResults,
@@ -69,51 +70,107 @@ export const createWebSearch = (context: ToolContext) => {
         // Defensively cap at 3 queries in case the model sends more
         const queries = rawQueries.slice(0, 3);
 
-        const searchBody = buildPerplexitySearchBody(
-          queries.length === 1 ? queries[0] : queries,
-          {
-            country: userLocation?.country,
-            recency: time && time !== "all" ? RECENCY_MAP[time] : undefined,
-          },
-        );
-
-        const response = await fetch("https://api.perplexity.ai/search", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY || ""}`,
-          },
-          body: JSON.stringify(searchBody),
-          signal: abortSignal,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `Perplexity API error: ${response.status} - ${errorText}`,
+        // 1. Prefer Perplexity Search API if API key exists
+        if (process.env.PERPLEXITY_API_KEY) {
+          const searchBody = buildPerplexitySearchBody(
+            queries.length === 1 ? queries[0] : queries,
+            {
+              country: userLocation?.country,
+              recency: time && time !== "all" ? RECENCY_MAP[time] : undefined,
+            },
           );
+
+          const response = await fetch("https://api.perplexity.ai/search", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+            },
+            body: JSON.stringify(searchBody),
+            signal: abortSignal,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(
+              `Perplexity API error: ${response.status} - ${errorText}`,
+            );
+          }
+
+          // Report web search cost ($5 per 1K requests)
+          onToolCost?.(WEB_SEARCH_COST_PER_REQUEST);
+
+          const searchResponse: PerplexitySearchResponse = await response.json();
+
+          // Handle both single query (flat array) and multi-query (nested arrays) responses
+          const isMultiQuery = queries.length > 1;
+          let allResults: PerplexitySearchResult[];
+
+          if (isMultiQuery && Array.isArray(searchResponse.results[0])) {
+            // Multi-query response: flatten results from all queries
+            allResults = (
+              searchResponse.results as PerplexitySearchResult[][]
+            ).flat();
+          } else {
+            // Single query response: results is already a flat array
+            allResults = searchResponse.results as PerplexitySearchResult[];
+          }
+
+          return formatSearchResults(allResults);
         }
 
-        // Report web search cost ($5 per 1K requests)
-        onToolCost?.(WEB_SEARCH_COST_PER_REQUEST);
+        // 2. Fall back to Jina Search API if JINA_API_KEY is present
+        if (process.env.JINA_API_KEY) {
+          const results: FormattedSearchResult[] = [];
 
-        const searchResponse: PerplexitySearchResponse = await response.json();
+          // Perform parallel requests for queries (max 3)
+          const searchPromises = queries.map(async (query) => {
+            const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
+            const response = await fetch(url, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${process.env.JINA_API_KEY}`,
+                Accept: "application/json",
+              },
+              signal: abortSignal,
+            });
 
-        // Handle both single query (flat array) and multi-query (nested arrays) responses
-        const isMultiQuery = queries.length > 1;
-        let allResults: PerplexitySearchResult[];
+            if (!response.ok) {
+              console.warn(`Jina Search failed for query: "${query}" - HTTP ${response.status}`);
+              return [];
+            }
 
-        if (isMultiQuery && Array.isArray(searchResponse.results[0])) {
-          // Multi-query response: flatten results from all queries
-          allResults = (
-            searchResponse.results as PerplexitySearchResult[][]
-          ).flat();
-        } else {
-          // Single query response: results is already a flat array
-          allResults = searchResponse.results as PerplexitySearchResult[];
+            const json = await response.json();
+            if (json.data && Array.isArray(json.data)) {
+              return json.data.map((item: any) => ({
+                title: item.title || "",
+                url: item.url || "",
+                content: item.content || item.description || "",
+                date: item.timestamp || null,
+                lastUpdated: null,
+              }));
+            }
+            return [];
+          });
+
+          const searchResponses = await Promise.all(searchPromises);
+          
+          // Flatten and deduplicate results by URL
+          const seenUrls = new Set<string>();
+          for (const list of searchResponses) {
+            for (const item of list) {
+              if (item.url && !seenUrls.has(item.url)) {
+                seenUrls.add(item.url);
+                results.push(item);
+              }
+            }
+          }
+
+          // Cap at 10 results total to prevent context window bloat
+          return results.slice(0, 10);
         }
 
-        return formatSearchResults(allResults);
+        throw new Error("No web search API keys configured (PERPLEXITY_API_KEY or JINA_API_KEY).");
       } catch (error) {
         // Handle abort errors gracefully without logging
         if (error instanceof Error && error.name === "AbortError") {

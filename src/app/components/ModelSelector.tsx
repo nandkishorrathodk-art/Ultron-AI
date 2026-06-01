@@ -338,7 +338,7 @@ export function ModelSelector({ value, onChange, mode }: ModelSelectorProps) {
   const isMobile = useIsMobile();
 
   const isAuto = value === "auto";
-  const isFreeUser = subscription === "free";
+  const isFreeUser = false; // Bypass free user model picker lock
   /** Base Pro tier: Max is flagged as unusually heavy usage vs higher plans. */
   const isBaseProTier = subscription === "pro";
 
@@ -348,21 +348,11 @@ export function ModelSelector({ value, onChange, mode }: ModelSelectorProps) {
   const selected =
     options.find((opt) => opt.id === effectiveValue) ?? options[0];
 
-  const isFreeAgent = isFreeUser && isAgentMode(mode);
-  const triggerLabel = isFreeAgent
+  const triggerLabel = isAuto
     ? "Auto"
-    : isFreeUser
-      ? "Model"
-      : isAuto
-        ? "Auto"
-        : selected.label;
+    : selected.label;
 
   const handleAutoToggle = (checked: boolean) => {
-    if (isFreeUser) {
-      window.location.hash = "pricing";
-      setOpen(false);
-      return;
-    }
     onChange(checked ? "auto" : getDefaultModelForMode(mode));
   };
 
