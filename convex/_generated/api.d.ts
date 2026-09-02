@@ -9,10 +9,36 @@
  */
 
 import type * as audit from "../audit.js";
+import type * as chatStreams from "../chatStreams.js";
+import type * as chats from "../chats.js";
+import type * as constants from "../constants.js";
 import type * as conversations from "../conversations.js";
+import type * as crons from "../crons.js";
+import type * as extraUsage from "../extraUsage.js";
+import type * as extraUsageActions from "../extraUsageActions.js";
+import type * as feedback from "../feedback.js";
+import type * as fileActions from "../fileActions.js";
+import type * as fileAggregate from "../fileAggregate.js";
+import type * as fileStorage from "../fileStorage.js";
 import type * as hitl from "../hitl.js";
+import type * as localSandbox from "../localSandbox.js";
+import type * as messages from "../messages.js";
+import type * as notes from "../notes.js";
+import type * as rateLimitStatus from "../rateLimitStatus.js";
+import type * as redisPubsub from "../redisPubsub.js";
 import type * as reports from "../reports.js";
+import type * as s3Actions from "../s3Actions.js";
+import type * as s3Cleanup from "../s3Cleanup.js";
+import type * as s3Utils from "../s3Utils.js";
 import type * as sessions from "../sessions.js";
+import type * as sharedChats from "../sharedChats.js";
+import type * as teamExtraUsage from "../teamExtraUsage.js";
+import type * as teamExtraUsageActions from "../teamExtraUsageActions.js";
+import type * as tempStreams from "../tempStreams.js";
+import type * as usageLogs from "../usageLogs.js";
+import type * as userCustomization from "../userCustomization.js";
+import type * as userDeletion from "../userDeletion.js";
+import type * as userSuspensions from "../userSuspensions.js";
 
 import type {
   ApiFromModules,
@@ -22,10 +48,36 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   audit: typeof audit;
+  chatStreams: typeof chatStreams;
+  chats: typeof chats;
+  constants: typeof constants;
   conversations: typeof conversations;
+  crons: typeof crons;
+  extraUsage: typeof extraUsage;
+  extraUsageActions: typeof extraUsageActions;
+  feedback: typeof feedback;
+  fileActions: typeof fileActions;
+  fileAggregate: typeof fileAggregate;
+  fileStorage: typeof fileStorage;
   hitl: typeof hitl;
+  localSandbox: typeof localSandbox;
+  messages: typeof messages;
+  notes: typeof notes;
+  rateLimitStatus: typeof rateLimitStatus;
+  redisPubsub: typeof redisPubsub;
   reports: typeof reports;
+  s3Actions: typeof s3Actions;
+  s3Cleanup: typeof s3Cleanup;
+  s3Utils: typeof s3Utils;
   sessions: typeof sessions;
+  sharedChats: typeof sharedChats;
+  teamExtraUsage: typeof teamExtraUsage;
+  teamExtraUsageActions: typeof teamExtraUsageActions;
+  tempStreams: typeof tempStreams;
+  usageLogs: typeof usageLogs;
+  userCustomization: typeof userCustomization;
+  userDeletion: typeof userDeletion;
+  userSuspensions: typeof userSuspensions;
 }>;
 
 /**
@@ -54,4 +106,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  fileCountByUser: any;
+};

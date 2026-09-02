@@ -1,0 +1,48 @@
+{
+  "name": "@ultron-ai/local",
+  "version": "0.8.3",
+  "description": "Ultron-AI Local Sandbox Client - Execute commands on your local machine",
+  "bin": {
+    "ultron-local": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ultron-ai",
+    "sandbox",
+    "pentesting",
+    "security",
+    "cli"
+  ],
+  "author": "Ultron-AI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nandkishorrathodk-art/Ultron-AI.git",
+    "directory": "packages/local"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "centrifuge": "^5.5.3",
+    "convex": "^1.39.1",
+    "ws": "^8.20.1"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.2.0-beta.12"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.3"
+  }
+}

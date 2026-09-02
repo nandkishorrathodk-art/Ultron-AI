@@ -1,126 +1,174 @@
 /**
- * ULTRON v3.0 — Sandbox Manager
+ * Shared Sandbox Session Manager
+ * ═══════════════════════════════════════════════════════════════
+ * Extracted from chat/route.ts so both the chat route and the
+ * execute-approved route can reuse the SAME persistent sandbox.
  *
- * Manages persistent E2B sandbox sessions.
- * NOTE: In-memory Map works for long-lived Node processes (e.g. `next dev`,
- * custom server, Docker). For serverless (Vercel), consider using Redis/Upstash
- * to store sandbox IDs and reconnect via `Sandbox.connect(sandboxId)`.
+ * Key design: one VM per session, files/tools survive between commands.
+ * Supports both E2B Cloud and Direct Local sandbox modes.
+ * ═══════════════════════════════════════════════════════════════
  */
 
 import { Sandbox } from "e2b";
+import { localSandboxManager } from "@/lib/local-sandbox-manager";
 
-interface SandboxLog {
-  command: string;
-  output: string;
-  timestamp: number;
-}
-
+// ─── Sandbox Session Interface ────────────────────────────────────────────────
 interface SandboxSession {
   sandbox: Sandbox;
-  sessionId: string;
-  sandboxId: string;
   lastUsed: number;
-  logs: SandboxLog[];
+  logs: { command: string; output: string; timestamp: number }[];
 }
 
-// In-memory session store — works for persistent Node servers
+// ─── Sandbox Session Map ──────────────────────────────────────────────────────
+// Stores active sandbox instances keyed by sessionId.
 const sandboxSessions = new Map<string, SandboxSession>();
 
-const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-const CLEANUP_INTERVAL_MS = 60_000;
-
-// Cleanup runs only in long-lived processes (not serverless)
-let cleanupStarted = false;
-
-function startCleanupIfNeeded(): void {
-  if (cleanupStarted || typeof globalThis.setInterval === "undefined") return;
-  cleanupStarted = true;
-
-  const interval = setInterval(async () => {
-    const now = Date.now();
-    for (const [sid, session] of sandboxSessions) {
-      if (now - session.lastUsed > IDLE_TIMEOUT_MS) {
-        console.log(`[Sandbox] Killing idle sandbox: ${sid}`);
-        try {
-          await session.sandbox.kill();
-        } catch {
-          // sandbox may already be dead
-        }
-        sandboxSessions.delete(sid);
-      }
+// Clean up idle sandboxes older than 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sandboxSessions.entries()) {
+    if (now - session.lastUsed > 10 * 60 * 1000) {
+      session.sandbox.kill().catch(() => {});
+      sandboxSessions.delete(id);
+      console.log(`[Ultron] Session ${id} expired and cleaned up`);
     }
-  }, CLEANUP_INTERVAL_MS);
+  }
+}, 60_000);
 
-  // Don't prevent Node from exiting
-  if (interval.unref) interval.unref();
-}
-
-export async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
+// ─── Get or Create Sandbox ────────────────────────────────────────────────────
+export async function getOrCreateSandbox(
+  sessionId: string,
+  template?: string,
+): Promise<Sandbox> {
   const existing = sandboxSessions.get(sessionId);
   if (existing) {
     existing.lastUsed = Date.now();
+    console.log(`[Ultron] Reusing sandbox for session: ${sessionId}`);
     return existing.sandbox;
   }
 
-  console.log(`[Sandbox] Creating new sandbox for session: ${sessionId}`);
-
-  const sandbox = await Sandbox.create({
-    apiKey: process.env.E2B_API_KEY,
-    timeoutMs: 5 * 60 * 1000, // 5 minutes sandbox lifetime
-  });
-
-  // Bootstrap the workspace
-  await sandbox.commands.run(
-    "mkdir -p /home/user/pentest && echo '# Ultron v3.0 Findings' > /home/user/pentest/findings.md",
-    { timeoutMs: 5_000 },
+  console.log(
+    `[Ultron] Creating new sandbox for session: ${sessionId}${template ? ` with template: ${template}` : ""}`,
   );
 
-  sandboxSessions.set(sessionId, {
-    sandbox,
-    sessionId,
-    sandboxId: sandbox.sandboxId,
-    lastUsed: Date.now(),
-    logs: [],
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const options: any = { apiKey: process.env.E2B_API_KEY! };
+  if (template) {
+    options.template = template;
+  }
+  const sandbox = await Sandbox.create(options);
 
-  startCleanupIfNeeded();
+  // Bootstrap pentest workspace on first creation
+  await sandbox.commands.run(
+    "mkdir -p /home/user/pentest && " +
+      "echo '# Ultron Pentest Session' > /home/user/pentest/findings.md && " +
+      "echo 'Session started: ' $(date) >> /home/user/pentest/findings.md",
+  );
 
+  sandboxSessions.set(sessionId, { sandbox, lastUsed: Date.now(), logs: [] });
   return sandbox;
 }
 
-export async function killSandbox(sessionId: string): Promise<boolean> {
+// ─── Get Desktop Stream URL ──────────────────────────────────────────────────
+export function getDesktopStreamUrl(sessionId: string): string | null {
   const session = sandboxSessions.get(sessionId);
-  if (!session) return false;
-
+  if (!session) return null;
   try {
-    await session.sandbox.kill();
-  } catch {
-    // sandbox may already be dead
+    // E2B desktop template exposes noVNC on port 6080
+    return `https://${session.sandbox.getHost(6080)}`;
+  } catch (err) {
+    console.error("[Ultron] Error getting desktop stream URL:", err);
+    return null;
   }
-  sandboxSessions.delete(sessionId);
-  console.log(`[Sandbox] Killed sandbox for session: ${sessionId}`);
-  return true;
 }
 
-export function addSandboxLog(sessionId: string, command: string, output: string): void {
+// ─── Kill Sandbox ─────────────────────────────────────────────────────────────
+export async function killSandbox(sessionId: string): Promise<boolean> {
   const session = sandboxSessions.get(sessionId);
   if (session) {
-    session.logs.push({ command, output, timestamp: Date.now() });
+    await session.sandbox.kill().catch(() => {});
+    sandboxSessions.delete(sessionId);
+    return true;
+  }
+  return false;
+}
+
+// ─── Add Sandbox Execution Log ───────────────────────────────────────────────
+export function addSandboxLog(
+  sessionId: string,
+  command: string,
+  output: string,
+) {
+  const session = sandboxSessions.get(sessionId);
+  if (session) {
+    session.logs.push({
+      command,
+      output: output || "(no output)",
+      timestamp: Date.now(),
+    });
     session.lastUsed = Date.now();
   }
 }
 
-export function getActiveSandboxes(): Array<{
-  sessionId: string;
-  sandboxId: string;
-  ageSeconds: number;
-  logCount: number;
-}> {
+// ─── Get Active Sandboxes ─────────────────────────────────────────────────────
+export function getActiveSandboxes() {
+  const active = [];
   const now = Date.now();
-  return Array.from(sandboxSessions.values()).map((s) => ({
-    sessionId: s.sessionId,
-    sandboxId: s.sandboxId,
-    ageSeconds: Math.round((now - s.lastUsed) / 1000),
-    logCount: s.logs.length,
-  }));
+  for (const [id, session] of sandboxSessions.entries()) {
+    active.push({
+      sessionId: id,
+      sandboxId: session.sandbox.sandboxId,
+      ageSeconds: Math.floor((now - session.lastUsed) / 1000),
+      logs: session.logs,
+    });
+  }
+  return active;
+}
+
+// ─── Local Sandbox Execution ─────────────────────────────────────────────────
+// Provides an E2B-like interface for local sandbox command execution.
+
+export interface LocalExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+/**
+ * Execute a command on a connected local sandbox.
+ * Finds the first ready connection and dispatches the command.
+ */
+export async function executeOnLocalSandbox(
+  command: string,
+  options: { connectionId?: string; timeoutMs?: number } = {},
+): Promise<LocalExecResult> {
+  const { connectionId, timeoutMs = 30_000 } = options;
+
+  let conn;
+  if (connectionId && connectionId !== "desktop") {
+    conn = localSandboxManager.getConnection(connectionId);
+  } else {
+    conn = localSandboxManager.findReadyConnection();
+  }
+
+  if (!conn) {
+    throw new Error(
+      "No local sandbox connected. Run: npx @ultron-ai/local --direct http://localhost:3000 --token TOKEN",
+    );
+  }
+
+  return localSandboxManager.executeCommand(conn.connectionId, command, {
+    timeout: timeoutMs,
+  });
+}
+
+/**
+ * Check if any local sandbox connection is available.
+ */
+export function hasLocalSandbox(connectionId?: string): boolean {
+  if (connectionId && connectionId !== "desktop") {
+    const conn = localSandboxManager.getConnection(connectionId);
+    return !!conn?.streamReady;
+  }
+  return !!localSandboxManager.findReadyConnection();
 }
