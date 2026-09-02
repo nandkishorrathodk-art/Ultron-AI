@@ -1,63 +1,70 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
-export const getByConversation = query({
-  args: { conversationId: v.id("conversations") },
+export const getByUser = query({
+  args: { userId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("pentest_sessions")
-      .withIndex("by_conversationId", (q) => q.eq("conversationId", args.conversationId))
-      .first();
+      .query("flows")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
+  },
+});
+
+export const get = query({
+  args: { id: v.id("flows") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
   },
 });
 
 export const create = mutation({
   args: {
-    conversationId: v.id("conversations"),
-    mode: v.union(v.literal("standard"), v.literal("ctf"), v.literal("bug_bounty"), v.literal("continuous")),
+    userId: v.string(),
+    title: v.string(),
+    mode: v.union(
+      v.literal("standard"),
+      v.literal("ctf"),
+      v.literal("bug_bounty"),
+      v.literal("continuous"),
+      v.literal("ai_redteam"),
+      v.literal("cicd"),
+    ),
     targetScope: v.array(v.string()),
-    ptgState: v.any(),
+    providerId: v.string(),
+    templateId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check if session already exists
-    const existing = await ctx.db
-      .query("pentest_sessions")
-      .withIndex("by_conversationId", (q) => q.eq("conversationId", args.conversationId))
-      .first();
-      
-    if (existing) {
-      return existing._id;
-    }
-
-    const id = await ctx.db.insert("pentest_sessions", {
-      conversationId: args.conversationId,
-      userId: "local_user",
+    const id = await ctx.db.insert("flows", {
+      userId: args.userId,
+      title: args.title,
       mode: args.mode,
-      target_scope: args.targetScope,
-      ptg_state: args.ptgState,
+      templateId: args.templateId,
+      targetScope: args.targetScope,
       status: "active",
+      providerId: args.providerId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
-    
     return id;
   },
 });
 
-export const updatePTG = mutation({
+export const updateStatus = mutation({
   args: {
-    id: v.id("pentest_sessions"),
-    ptgState: v.any(),
-    status: v.optional(v.union(v.literal("active"), v.literal("paused"), v.literal("completed"), v.literal("failed"))),
+    id: v.id("flows"),
+    status: v.union(
+      v.literal("active"),
+      v.literal("paused"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
   },
   handler: async (ctx, args) => {
-    const patches: any = {
-      ptg_state: args.ptgState,
+    await ctx.db.patch(args.id, {
+      status: args.status,
       updatedAt: Date.now(),
-    };
-    if (args.status) {
-      patches.status = args.status;
-    }
-    await ctx.db.patch(args.id, patches);
+    });
   },
 });

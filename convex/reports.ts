@@ -1,20 +1,27 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
-export const getBySession = query({
-  args: { sessionId: v.id("pentest_sessions") },
+export const getByFlow = query({
+  args: { flowId: v.id("flows") },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("attack_reports")
-      .filter((q) => q.eq(q.field("sessionId"), args.sessionId))
+      .withIndex("by_flowId", (q) => q.eq("flowId", args.flowId))
       .collect();
   },
 });
 
 export const create = mutation({
   args: {
-    sessionId: v.id("pentest_sessions"),
-    format: v.union(v.literal("pdf"), v.literal("word"), v.literal("excel"), v.literal("hackerone"), v.literal("bugcrowd"), v.literal("ctf_writeup")),
+    flowId: v.id("flows"),
+    format: v.union(
+      v.literal("pdf"),
+      v.literal("word"),
+      v.literal("excel"),
+      v.literal("hackerone"),
+      v.literal("bugcrowd"),
+      v.literal("ctf_writeup"),
+    ),
     s3Key: v.string(),
     findingsCount: v.number(),
     criticalCount: v.number(),
@@ -23,7 +30,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("attack_reports", {
-      sessionId: args.sessionId,
+      flowId: args.flowId,
       format: args.format,
       s3Key: args.s3Key,
       findingsCount: args.findingsCount,
